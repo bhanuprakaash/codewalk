@@ -11,6 +11,7 @@ export interface Goto {
   edge(id: string): void;
   step(i: number, wi?: string | null): void;
   whatif(id: string): void;
+  patterns(): void;
 }
 export interface Ctx {
   walk: Walk;

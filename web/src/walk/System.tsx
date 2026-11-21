@@ -4,6 +4,8 @@ import { ChangeSec, SeenButton, useChanges } from './changes';
 import { FuncCard, MethodCard, TypeCard } from './cards';
 import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
+import { Legend } from './Bars';
+import { Notice, Tabs, TopBar, type Tab } from './Header';
 import { BoxIcon } from './icons';
 import { initNav, reducer } from './nav';
 import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
@@ -11,6 +13,7 @@ import { Panel } from './Panel';
 import { PatternsCard } from './patterns';
 import { Chip, Sec } from './parts';
 import { loadUser, patchUser } from './user';
+import { useNav } from '../route';
 import type { Pt, System as SystemData, User, Walk } from './types';
 
 type Loaded = { sys: SystemData; user: User } | { error: string } | null;
@@ -46,13 +49,20 @@ export function System({
     };
   }, [query, id]);
 
-  if (!data) return <p className="note">Opening the system view…</p>;
+  if (!data)
+    return (
+      <Notice>
+        <p className="note">Opening the system view…</p>
+      </Notice>
+    );
   if ('error' in data) {
     return (
-      <div className="notice">
-        <h2>No system view yet</h2>
-        <p>{data.error}</p>
-      </div>
+      <Notice>
+        <div className="notice">
+          <h2>No system view yet</h2>
+          <p>{data.error}</p>
+        </div>
+      </Notice>
     );
   }
   return (
@@ -91,9 +101,7 @@ function SystemView({
       capturedAt: '',
       goroutineNotes: {},
       packages: [],
-      nodes: Object.fromEntries(
-        Object.values(sys.boxes).map((b) => [b.id, { ...b, icon: b.icon || b.kind }]),
-      ),
+      nodes: Object.fromEntries(Object.values(sys.boxes).map((b) => [b.id, b])),
       types: sys.types,
       funcs: sys.funcs,
       patterns: sys.patterns,
@@ -122,6 +130,39 @@ function SystemView({
       ? `${query}&id=${encodeURIComponent(view.slice('system:'.length))}`
       : query,
   );
+  const nav = useNav();
+  const scopes = nav.projects?.find((p) => p.name === nav.route.project)?.scopes;
+  const [flows, setFlows] = useState<Tab[]>([]);
+  useEffect(() => {
+    let live = true;
+    Promise.all(
+      (scopes ?? []).map((scope) =>
+        fetch(`/api/walk?${query}&scope=${encodeURIComponent(scope)}`)
+          .then((r) => (r.ok ? (r.json() as Promise<Walk>) : null))
+          .catch(() => null)
+          .then((w) =>
+            (w?.workflows ?? []).map((wf): Tab => ({
+              label: `${scope} · ${wf.title}`,
+              tone: wf.nodes.some((id) => w!.nodes[id].kind === 'you') ? 'you' : 'go',
+              on: false,
+              open: () => nav.go({ project: nav.route.project, scope, view: wf.id }),
+            })),
+          ),
+      ),
+    ).then((l) => live && setFlows(l.flat()));
+    return () => {
+      live = false;
+    };
+  }, [query, scopes?.join()]);
+  const tabs: Tab[] = [
+    {
+      label: 'System',
+      tone: 'sys',
+      on: view === 'system',
+      open: () => nav.go({ project: nav.route.project }),
+    },
+    ...flows,
+  ];
   const cur = s.hist[s.hi];
   const selected = s.open && cur ? cur : null;
 
@@ -140,6 +181,7 @@ function SystemView({
     edge: (id) => dispatch({ t: 'open', entry: { k: 'edge', id, wf: view } }),
     step: () => {},
     whatif: () => {},
+    patterns: () => open('patterns', ''),
   };
 
   useEffect(() => {
@@ -201,23 +243,39 @@ function SystemView({
       value={{ walk, wf: null, wi: null, go, changes: changed.res, notes, setNote }}
     >
       <div className="walk system">
-        <header>
-          <div className="brand">{sys.title}</div>
-          <div className="sep" />
-          <div className="right">
-            <span className="meta">
-              {sys.commit.slice(0, 7)}
-              {saveFailed ? ' · could not save' : ''}
-              {changed.error ? ` · ${changed.error}` : ''}
-            </span>
-            <button onClick={() => open('patterns', '')}>Go patterns</button>
-            {lost.length > 0 && (
-              <button onClick={() => open('orphans', '')}>Orphaned notes · {lost.length}</button>
-            )}
-            <SeenButton res={changed.res} onSeen={seen} />
-          </div>
-        </header>
-        <div />
+        <TopBar
+          name={sys.title}
+          viewLabel={view === 'system' ? 'System' : view.slice('system:'.length)}
+          views={[
+            { label: 'System', to: { project: nav.route.project }, on: view === 'system' },
+            ...(scopes ?? []).map((scope) => ({
+              label: scope,
+              to: { project: nav.route.project, scope },
+            })),
+          ]}
+        >
+          <span className="meta">
+            {sys.commit.slice(0, 7)}
+            {saveFailed ? ' · could not save' : ''}
+            {changed.error ? ` · ${changed.error}` : ''}
+          </span>
+          {lost.length > 0 && (
+            <button className="plain" onClick={() => open('orphans', '')}>
+              Orphaned notes · {lost.length}
+            </button>
+          )}
+          <SeenButton res={changed.res} onSeen={seen} />
+        </TopBar>
+        <Tabs
+          tabs={tabs}
+          patterns={sys.patterns?.length ?? 0}
+          onPatterns={() => open('patterns', '')}
+        />
+        <Legend
+          system
+          kinds={Object.values(sys.boxes).map((b) => b.kind)}
+          edges={sys.edges.map((e) => e.kind)}
+        />
         <div id="body">
           <aside id="state" />
           <div id="canvasWrap">
@@ -289,17 +347,23 @@ function BoxCard({
   return (
     <>
       <div className="card-h">
-        <svg className="gl ib" viewBox="0 0 28 28" width={28} height={28}>
-          <BoxIcon icon={b.icon!} kind={b.kind} x={5} y={5} size={18} />
-        </svg>
-        <h2>{b.label}</h2>
+        <BoxIcon icon={b.icon} kind={b.kind} size={48} />
+        <div>
+          <h2>{b.label}</h2>
+          <div className="loc">
+            {KIND[b.kind].name}
+            {b.pkg ? ` · ${b.pkg}/` : ''}
+          </div>
+        </div>
       </div>
-      <div className="loc">
-        {KIND[b.kind].name}
-        {b.pkg ? ` · ${b.pkg}/` : ''}
-      </div>
-      {b.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{b.what}</p>}
-      {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
+      {b.what && (
+        <Sec h="What it does">
+          <p>{b.what}</p>
+        </Sec>
+      )}
+      {changes && (
+        <ChangeSec change={changes.changes[id]} base={changes.base} head={changes.head} />
+      )}
       <NoteSec k={boxKey(view, id)} />
       {b.drill && (
         <p style={{ marginTop: 10 }}>
@@ -310,7 +374,7 @@ function BoxCard({
         <Sec h={`Types · ${b.types.length}`}>
           <div className="pills">
             {b.types.map((t) => (
-              <Chip key={t} kind="type" glyph="T" onClick={() => go.type(t)}>
+              <Chip key={t} kind="type" onClick={() => go.type(t)}>
                 {walk.types[t]?.name ?? t}
               </Chip>
             ))}
@@ -330,16 +394,16 @@ function EdgeCard({ id, sys }: { id: string; sys: SystemData }) {
   return (
     <>
       <div className="card-h">
-        <div className="gl" style={{ background: 'var(--muted)' }}>
-          →
+        <BoxIcon icon="arrow" kind="start" size={48} />
+        <div>
+          <h2>
+            {walk.nodes[e.from].label} → {walk.nodes[e.to].label}
+          </h2>
+          <div className="loc">
+            {e.kind}
+            {e.label ? ` · ${e.label}` : ''}
+          </div>
         </div>
-        <h2>
-          {walk.nodes[e.from].label} → {walk.nodes[e.to].label}
-        </h2>
-      </div>
-      <div className="loc">
-        {e.kind}
-        {e.label ? ` · ${e.label}` : ''}
       </div>
       {e.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{e.what}</p>}
       {e.kind === 'imports' && (

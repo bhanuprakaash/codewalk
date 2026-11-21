@@ -13,21 +13,19 @@ export type Graph = { nodes: string[]; edges: GEdge[]; pos: Record<string, Pt> }
 export const NW = 210;
 export const NH = 58;
 
-export const KIND: Record<Kind, { g: string; name: string }> = {
-  start: { g: '▶', name: 'Starts' },
-  func: { g: 'ƒ', name: 'Function' },
-  type: { g: 'T', name: 'Type' },
-  store: { g: '≡', name: 'Stores' },
-  outside: { g: '☁', name: 'Outside' },
-  you: { g: '✋', name: 'You' },
-  output: { g: '✓', name: 'Output' },
-  exit: { g: '⤫', name: 'Early exit' },
-  ui: { g: '▢', name: 'UI' },
-  service: { g: '⚙', name: 'Service' },
-  package: { g: '▣', name: 'Package' },
+export const KIND: Record<Kind, { name: string }> = {
+  start: { name: 'Starts' },
+  func: { name: 'Function' },
+  type: { name: 'Type' },
+  store: { name: 'Stores' },
+  outside: { name: 'Outside' },
+  you: { name: 'Stops for you' },
+  output: { name: 'Output' },
+  exit: { name: 'Early exit' },
+  ui: { name: 'UI' },
+  service: { name: 'Service' },
+  package: { name: 'Package' },
 };
-export const SYSTEM_KINDS = ['ui', 'service', 'package'];
-export const kc = (k: string) => `var(--k-${k})`;
 export const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 export const ease = (x: number) => {

@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { toggleTheme } from './theme';
+import { NavCtx, hrefOf, type Project, type Route } from './route';
+import { Notice } from './walk/Header';
 import { OVERVIEW } from './walk/nav';
 import { System } from './walk/System';
 import { Walk } from './walk/Walk';
-
-type Project = { name: string; scopes: string[] };
-type Route = { project?: string; scope?: string; view?: string; from?: string };
 
 const parse = (): Route => {
   try {
@@ -18,12 +16,6 @@ const parse = (): Route => {
     return {};
   }
 };
-const hrefOf = (r: Route) =>
-  '/' +
-  [r.project, r.scope, r.view === OVERVIEW ? undefined : r.view]
-    .filter((x) => x !== undefined)
-    .map((x) => encodeURIComponent(x!))
-    .join('/');
 
 export function App() {
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -52,54 +44,8 @@ export function App() {
   };
 
   return (
-    <div className="app">
-      <nav className="sidebar">
-        <div className="brand">
-          <h1>codewalk</h1>
-          <button title="Light / dark" onClick={toggleTheme}>
-            ◐
-          </button>
-        </div>
-        {failed && <p className="note">Could not load projects. Is codewalk running?</p>}
-        {projects?.length === 0 && <p className="note">No projects in ~/.codewalk yet.</p>}
-        {projects?.map((p) => (
-          <section key={p.name}>
-            <h2>
-              <a
-                href={hrefOf({ project: p.name })}
-                className={route.project === p.name && !route.scope ? 'active' : ''}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate({ project: p.name });
-                }}
-              >
-                {p.name}
-              </a>
-            </h2>
-            <ul>
-              {p.scopes.map((scope) => {
-                const to = { project: p.name, scope };
-                return (
-                  <li key={scope}>
-                    <a
-                      href={hrefOf(to)}
-                      className={route.project === p.name && route.scope === scope ? 'active' : ''}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(to);
-                      }}
-                    >
-                      {scope}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-      </nav>
+    <NavCtx.Provider value={{ projects, route, go: navigate }}>
       <main className="main">
-        {route.project && <Crumbs route={route} onGo={navigate} />}
         {route.project && route.scope && !route.scope.startsWith('system:') ? (
           <Walk
             project={route.project}
@@ -120,39 +66,15 @@ export function App() {
             }
           />
         ) : (
-          <p className="note">Pick a project or a scope on the left.</p>
+          <Notice>
+            {failed && <p className="note">Could not load projects. Is codewalk running?</p>}
+            {projects?.length === 0 && <p className="note">No projects in ~/.codewalk yet.</p>}
+            {projects?.length !== 0 && !failed && (
+              <p className="note">Pick a project or a scope in the bar above.</p>
+            )}
+          </Notice>
         )}
       </main>
-    </div>
-  );
-}
-
-function Crumbs({ route, onGo }: { route: Route; onGo(r: Route): void }) {
-  const parts: [string, Route][] = [[route.project!, { project: route.project }]];
-  if (route.from) parts.push([route.from, { project: route.project, scope: route.from }]);
-  if (route.scope)
-    parts.push([route.scope, { project: route.project, scope: route.scope, from: route.from }]);
-  if (route.view && route.view !== OVERVIEW) parts.push([route.view, route]);
-  return (
-    <div className="crumbs">
-      {parts.map(([label, to], i) => (
-        <span key={i}>
-          {i > 0 && <span className="sep">›</span>}
-          {i < parts.length - 1 ? (
-            <a
-              href={hrefOf(to)}
-              onClick={(e) => {
-                e.preventDefault();
-                onGo(to);
-              }}
-            >
-              {label}
-            </a>
-          ) : (
-            <b>{label}</b>
-          )}
-        </span>
-      ))}
-    </div>
+    </NavCtx.Provider>
   );
 }

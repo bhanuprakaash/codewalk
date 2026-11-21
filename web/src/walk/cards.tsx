@@ -3,7 +3,8 @@ import { ChangeSec } from './changes';
 import { Code } from './Code';
 import { NoteSec, nodeKey } from './notes';
 import { useWalk } from './ctx';
-import { KIND, kc } from './graph';
+import { KIND } from './graph';
+import { BoxIcon } from './icons';
 import { Chip, LinkTypes, Rows, Sec, TypeLink, WhyBox } from './parts';
 import type { Edge, EdgeKind, Method, WalkType } from './types';
 
@@ -31,6 +32,7 @@ export function NodeCard({ id }: { id: string }) {
     stores: 'Stores to',
     asks: 'Asks',
   };
+  const pats = (walk.patterns ?? []).filter((p) => p.sites.some((x) => x.symbol === n.symbol));
   const ws = wf ? [wf] : walk.workflows.filter((w) => w.nodes.includes(id));
   const ins = ws.flatMap((w) => w.edges.filter((e) => e.to === id));
   const outs = ws.flatMap((w) => w.edges.filter((e) => e.from === id));
@@ -40,12 +42,7 @@ export function NodeCard({ id }: { id: string }) {
         <div className="pills">
           {[...new Map(es.filter((e) => names[e.kind] === h).map((e) => [e[end], e])).values()].map(
             (e) => (
-              <Chip
-                key={e[end]}
-                kind={walk.nodes[e[end]].kind}
-                glyph={KIND[walk.nodes[e[end]].kind].g}
-                onClick={() => go.node(e[end])}
-              >
+              <Chip key={e[end]} kind={walk.nodes[e[end]].kind} onClick={() => go.node(e[end])}>
                 {walk.nodes[e[end]].label}
                 {e.cond && (
                   <>
@@ -63,21 +60,26 @@ export function NodeCard({ id }: { id: string }) {
   return (
     <>
       <div className="card-h">
-        <div className="gl" style={{ background: kc(n.kind) }}>
-          {KIND[n.kind].g}
+        <BoxIcon icon={n.icon} kind={n.kind} size={48} />
+        <div>
+          <h2>{n.label}</h2>
+          <div className="loc">
+            {[
+              n.kind === 'func' ? 'func' : KIND[n.kind].name.toLowerCase(),
+              n.pkg && `package ${n.pkg}`,
+              n.path && `${n.path}:${n.line}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
         </div>
-        <h2>{n.label}</h2>
       </div>
-      <div className="loc">
-        {n.path ? `${n.path}:${n.line}` : KIND[n.kind].name}
-        {n.pkg ? ` · ${n.pkg}/` : ''}
-      </div>
-      {n.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{n.what}</p>}
-      {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
-      <NoteSec k={nodeKey(id, n.symbol)} />
-      {n.why && (
-        <Sec h="Why it exists">
-          <WhyBox why={n.why} />
+      {changes && (
+        <ChangeSec change={changes.changes[id]} base={changes.base} head={changes.head} />
+      )}
+      {n.what && (
+        <Sec h="What it does">
+          <p>{n.what}</p>
         </Sec>
       )}
       {n.sig && (
@@ -90,6 +92,23 @@ export function NodeCard({ id }: { id: string }) {
             )}
             <LinkTypes text={n.sig} />
           </div>
+        </Sec>
+      )}
+      {pats.length > 0 && (
+        <Sec h="Go patterns here">
+          <div className="pills">
+            {pats.map((p) => (
+              <a key={p.id} className="pat" onClick={() => go.patterns()}>
+                {p.name}
+              </a>
+            ))}
+          </div>
+        </Sec>
+      )}
+      <NoteSec k={nodeKey(id, n.symbol)} />
+      {n.why && (
+        <Sec h="Why it exists">
+          <WhyBox why={n.why} />
         </Sec>
       )}
       {recv && (
@@ -146,7 +165,7 @@ function Methods({ t }: { t: WalkType }) {
             <Chip
               key={m.name}
               kind="func"
-              glyph="ƒ"
+
               title={m.sig}
               onClick={() => go.method(t.symbol, m.name)}
             >
@@ -187,13 +206,13 @@ export function TypeCard({ symbol }: { symbol: string }) {
   return (
     <>
       <div className="card-h">
-        <div className="gl" style={{ background: 'var(--k-type)' }}>
-          T
+        <BoxIcon kind="type" size={48} />
+        <div>
+          <h2>{t.name}</h2>
+          <div className="loc">
+            {t.kind} · {t.path}:{t.line}
+          </div>
         </div>
-        <h2>{t.name}</h2>
-      </div>
-      <div className="loc">
-        {t.path}:{t.line} · {t.kind}
       </div>
       {t.role && <p style={{ lineHeight: 1.6, margin: 0 }}>{t.role}</p>}
       <NoteSec k={t.symbol} />
@@ -206,7 +225,7 @@ export function TypeCard({ symbol }: { symbol: string }) {
         <Sec h="Implemented by">
           <div className="pills">
             {t.implementedBy.map((x) => (
-              <Chip key={x} kind="type" glyph="T">
+              <Chip key={x} kind="type">
                 {x}
               </Chip>
             ))}
@@ -232,7 +251,7 @@ export function TypeCard({ symbol }: { symbol: string }) {
         <Sec h="On this walk's map">
           <div className="pills">
             {users.map((n) => (
-              <Chip key={n.id} kind={n.kind} glyph="ƒ" onClick={() => go.node(n.id)}>
+              <Chip key={n.id} kind={n.kind} onClick={() => go.node(n.id)}>
                 {n.label}
               </Chip>
             ))}
@@ -268,13 +287,14 @@ function FuncBody({ m, title, typeSym }: { m: Method; title: string; typeSym?: s
   return (
     <>
       <div className="card-h">
-        <div className="gl" style={{ background: 'var(--k-func)' }}>
-          ƒ
+        <BoxIcon kind="func" size={48} />
+        <div>
+          <h2>{title}</h2>
+          <div className="loc">
+            func · {m.path}:{m.line} · {isPublic(m.name) ? 'exported' : 'internal'} · not on this
+            map
+          </div>
         </div>
-        <h2>{title}</h2>
-      </div>
-      <div className="loc">
-        {m.path}:{m.line} · {isPublic(m.name) ? 'exported' : 'internal'} · not on this map
       </div>
       {m.doc ? (
         <p style={{ lineHeight: 1.6, margin: 0 }}>{m.doc}</p>
@@ -316,17 +336,17 @@ export function EdgeCard({ id }: { id: string }) {
   return (
     <>
       <div className="card-h">
-        <div className="gl" style={{ background: 'var(--muted)' }}>
-          →
+        <BoxIcon icon="arrow" kind="start" size={48} />
+        <div>
+          <h2>
+            {walk.nodes[e.from].label} → {walk.nodes[e.to].label}
+          </h2>
+          <div className="loc">
+            {kindName[e.kind]}
+            {e.cond ? ` · when ${e.cond}` : ''}
+            {e.label ? ` · ${e.label}` : ''}
+          </div>
         </div>
-        <h2>
-          {walk.nodes[e.from].label} → {walk.nodes[e.to].label}
-        </h2>
-      </div>
-      <div className="loc">
-        {kindName[e.kind]}
-        {e.cond ? ` · when ${e.cond}` : ''}
-        {e.label ? ` · ${e.label}` : ''}
       </div>
       {steps.length > 0 && (
         <Sec h="Data crossing here (real run)">

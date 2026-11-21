@@ -18,13 +18,13 @@ Open http://codewalk.localhost:47474. The agent restarts the server if it stops,
 
 ## Use
 
-Pick a scope in the sidebar. The address follows it: `/<project>` opens the project's system view
-([docs/system.md](docs/system.md)), `/<project>/<scope>` a walk's overview and
+Pick a project or scope in the top bar. The address follows it: `/<project>` opens the project's
+system view ([docs/system.md](docs/system.md)), `/<project>/<scope>` a walk's overview and
 `/<project>/<scope>/<workflow>` a workflow. Dragged boxes are saved to `user.json` beside the walk.
-A dot marks a node whose symbol's lines changed (or that is gone) between the commit you last
-marked seen (`seenSha` in `user.json`, by default the commit the walk was built from) and the
-repo's HEAD; its card shows the diff. On a system view a dot marks a package box with any change
-in its package. "Mark seen" stores HEAD and clears the dots.
+An amber border marks a node whose symbol's lines changed (a dot marks one that is gone) between
+the commit you last marked seen (`seenSha` in `user.json`, by default the commit the walk was built
+from) and the repo's HEAD; its card shows the diff. On a system view the border marks a package
+box with any change in its package. "Mark seen" stores HEAD and clears the marks.
 A note on a node, type or method (or a system box) is kept in `user.json` under `notes`, keyed
 by symbol (`node:<id>` for a node without one, `box:<id>` for a box), so it survives a rebuild. A
 note whose target is gone after a rebuild is listed under "Orphaned notes" with its old key.

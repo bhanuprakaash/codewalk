@@ -1,42 +1,54 @@
 import { useState } from 'react';
-import { KIND, SYSTEM_KINDS, kc } from './graph';
-import type { EdgeKind, Step, Walk, WhatIf, Workflow } from './types';
+import { KIND } from './graph';
+import { BoxIcon } from './icons';
+import type { Step, Walk, WhatIf, Workflow } from './types';
 
-const EDGES: [EdgeKind, string, string][] = [
-  ['call', 'Calls', ''],
-  ['when', 'Only when', '2 4'],
-  ['go', 'Runs in background', '7 5'],
-  ['stores', 'Stores', ''],
-  ['asks', 'Asks and waits', ''],
+const EDGES: [string, string, string[]][] = [
+  ['imports', 'Imports', ['imports']],
+  ['call', 'Calls', ['call', 'calls']],
+  ['http', 'HTTP · MCP', ['http', 'mcp']],
+  ['sse', 'SSE', ['sse']],
+  ['when', 'Only when', ['when']],
+  ['go', 'Runs in background', ['go']],
+  ['stores', 'Stores', ['stores']],
+  ['asks', 'Asks and waits', ['asks']],
 ];
-const edgeColour = (k: EdgeKind) =>
-  k === 'stores' ? 'var(--k-store)' : k === 'asks' ? 'var(--you)' : 'var(--muted)';
+const SYSTEM_NAMES: Record<string, string> = {
+  package: 'Go package',
+  ui: 'UI',
+  service: 'Service',
+  store: 'Data',
+  outside: 'Outside',
+};
 
-export function Legend() {
+export function Legend({
+  kinds,
+  edges,
+  system,
+}: {
+  kinds: string[];
+  edges: string[];
+  system?: boolean;
+}) {
   return (
     <div id="legend">
-      {Object.entries(KIND)
-        .filter(([k]) => !SYSTEM_KINDS.includes(k))
-        .map(([k, v]) => (
+      {Object.keys(system ? SYSTEM_NAMES : KIND)
+        .filter((k) => kinds.includes(k))
+        .map((k) => (
           <span className="it" key={k}>
-            <span className="gl" style={{ background: kc(k) }}>
-              {v.g}
-            </span>
-            {v.name}
+            <BoxIcon kind={k} size={22} />
+            {system ? SYSTEM_NAMES[k] : KIND[k as keyof typeof KIND].name}
           </span>
         ))}
+      <span className="it">
+        <span className="chg-sw" aria-hidden="true" />
+        Changed
+      </span>
       <span className="bar" />
-      {EDGES.map(([k, name, dash]) => (
-        <span className="it" key={k}>
+      {EDGES.filter(([, , ks]) => ks.some((k) => edges.includes(k))).map(([k, name]) => (
+        <span className={`it edge ${k}`} key={k}>
           <svg width="30" height="10">
-            <path
-              d="M1,5 L27,5"
-              stroke={edgeColour(k)}
-              strokeWidth="1.6"
-              fill="none"
-              strokeDasharray={dash}
-              markerEnd="url(#ar)"
-            />
+            <path className="ln" d="M1,5 L27,5" fill="none" markerEnd="url(#ar)" />
           </svg>
           {name}
         </span>

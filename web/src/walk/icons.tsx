@@ -1,4 +1,4 @@
-import { kc } from './graph';
+import type { CSSProperties } from 'react';
 import { LOGOS } from './logos';
 
 const ring = (x: number, y: number, r: number) =>
@@ -19,7 +19,23 @@ const ICONS: Record<string, string> = {
   git: `${ring(4.5, 3.5, 1.5)} ${ring(4.5, 12.5, 1.5)} ${ring(11.5, 5, 1.5)} M4.5 5v6 M11.5 6.5c0 2.5-3 3-7 4.5`,
   queue: 'M2 4h9 M2 8h9 M2 12h9 M12.5 6l2 2-2 2',
   file: 'M4 1.5h5L12.5 5v9.5H4z M9 1.5V5h3.5',
+  play: 'M5 3l8 5-8 5z',
+  hand: 'M5.33 8.67V4a1 1 0 0 1 2 0v3.33M7.33 7.33V3a1 1 0 0 1 2 0v4.33M9.33 7.33V4a1 1 0 0 1 2 0v4.67c0 2.67-2 4.67-4.33 4.67S3.33 11.33 3.33 9.33V8a1 1 0 0 1 2 0',
+  check: 'M3 8.5l3.2 3.2L13 4.8',
+  cross: 'M4 4l8 8M12 4L4 12',
+  arrow: 'M2.5 8h10M9 4.5L12.5 8 9 11.5',
 };
+
+const BY_KIND: Record<string, string> = {
+  start: 'play',
+  store: 'database',
+  outside: 'si:claude',
+  you: 'hand',
+  output: 'check',
+  exit: 'cross',
+  package: 'si:go',
+};
+const LETTER: Record<string, string> = { func: 'ƒ', type: 'T' };
 
 export function BoxIcon({
   icon,
@@ -28,29 +44,51 @@ export function BoxIcon({
   y,
   size,
 }: {
-  icon: string;
+  icon?: string;
   kind: string;
-  x: number;
-  y: number;
+  x?: number;
+  y?: number;
   size: number;
 }) {
-  const logo = icon.startsWith('si:') ? LOGOS[icon.slice(3)] : undefined;
-  if (logo)
-    return (
-      <svg x={x} y={y} width={size} height={size} viewBox="0 0 24 24">
-        <path d={logo} fill="var(--text)" />
-      </svg>
-    );
+  const name = icon && (icon.startsWith('si:') || ICONS[icon]) ? icon : undefined;
+  const pick = name ?? (LETTER[kind] ? undefined : (BY_KIND[kind] ?? kind));
+  const logo = pick?.startsWith('si:') ? LOGOS[pick.slice(3)] : undefined;
+  const style = logo && {
+    '--logo': logo.hex,
+    '--logo-light': logo.light,
+    '--logo-dark': logo.dark,
+  };
   return (
-    <svg x={x} y={y} width={size} height={size} viewBox="0 0 16 16">
-      <path
-        d={ICONS[icon] ?? ICONS[kind] ?? ICONS.package}
-        fill="none"
-        stroke={kc(kind)}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg
+      x={x}
+      y={y}
+      width={size}
+      height={size}
+      viewBox="0 0 36 36"
+      className={`bi k-${kind}${logo ? ' logo' : ''}${icon === 'agent' ? ' agent' : ''}${kind === 'you' && !name ? ' solid' : ''}`}
+      style={style as CSSProperties | undefined}
+    >
+      <rect className="tint" width={36} height={36} rx={10} />
+      {logo ? (
+        <svg x={6} y={6} width={24} height={24} viewBox="0 0 24 24">
+          <path d={logo.d} fill="var(--c)" />
+        </svg>
+      ) : pick ? (
+        <svg x={8} y={8} width={20} height={20} viewBox="0 0 16 16">
+          <path
+            className="ink"
+            d={ICONS[pick] ?? ICONS.package}
+            fill="none"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <text className="letter" x={18} y={24.5} textAnchor="middle">
+          {LETTER[kind]}
+        </text>
+      )}
     </svg>
   );
 }
