@@ -29,6 +29,7 @@ func Handler(dataDir string) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(projects)
 	})
+	walkRoutes(mux, dataDir)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", spa(web.FS()))
 	return mux
