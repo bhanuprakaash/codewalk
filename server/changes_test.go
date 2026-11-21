@@ -59,6 +59,13 @@ func TestChanges(t *testing.T) {
 		}
 	}
 
+	if rec := do(h, "PUT", "/api/user?project=pr&scope=s", `{"seenSha":"--output=x"}`); rec.Code != 204 {
+		t.Fatalf("bad seenSha: %d", rec.Code)
+	}
+	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "g": "removed"}) {
+		t.Errorf("bad seenSha falls back to the built commit: %v", got)
+	}
+
 	if rec := do(h, "PUT", "/api/user?project=pr&scope=s", `{"seenSha":"`+b+`"}`); rec.Code != 204 {
 		t.Fatalf("mark seen: %d", rec.Code)
 	}
