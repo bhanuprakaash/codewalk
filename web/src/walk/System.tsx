@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, type CanvasHandle } from './Canvas';
+import { ChangeSec, SeenButton, useChanges } from './changes';
 import { MethodCard, TypeCard } from './cards';
 import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
@@ -115,6 +116,11 @@ function SystemView({
   const canvas = useRef<CanvasHandle>(null);
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
+  const changed = useChanges(
+    view.startsWith('system:')
+      ? `${query}&id=${encodeURIComponent(view.slice('system:'.length))}`
+      : query,
+  );
   const cur = s.hist[s.hi];
   const selected = s.open && cur ? cur : null;
 
@@ -149,19 +155,26 @@ function SystemView({
     ...graph.pos,
     ...(saved?.layout === layoutOf(graph) ? saved.nodes : {}),
   };
-  const moved = (nodes: Record<string, Pt> | null) => {
-    const positions = { ...userDoc.current.positions };
-    if (nodes) positions[view] = { layout: layoutOf(graph), nodes };
-    else delete positions[view];
-    userDoc.current = { ...userDoc.current, positions };
+  const save = (doc: User) => {
+    userDoc.current = doc;
     fetch(`/api/user?${query}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(userDoc.current),
+      body: JSON.stringify(doc),
     }).then(
       (r) => setSaveFailed(!r.ok),
       () => setSaveFailed(true),
     );
+  };
+  const moved = (nodes: Record<string, Pt> | null) => {
+    const positions = { ...userDoc.current.positions };
+    if (nodes) positions[view] = { layout: layoutOf(graph), nodes };
+    else delete positions[view];
+    save({ ...userDoc.current, positions });
+  };
+  const seen = (head: string) => {
+    save({ ...userDoc.current, seenSha: head });
+    changed.clear();
   };
 
   let body;
@@ -172,7 +185,7 @@ function SystemView({
   else if (cur.k === 'edge') body = <EdgeCard id={cur.id} sys={sys} />;
 
   return (
-    <WalkCtx.Provider value={{ walk, wf: null, wi: null, go }}>
+    <WalkCtx.Provider value={{ walk, wf: null, wi: null, go, changes: changed.res }}>
       <div className="walk system">
         <header>
           <div className="brand">{sys.title}</div>
@@ -180,8 +193,9 @@ function SystemView({
           <div className="right">
             <span className="meta">
               {sys.commit.slice(0, 7)}
-              {saveFailed ? ' · could not save your layout' : ''}
+              {saveFailed ? ' · could not save' : ''}
             </span>
+            <SeenButton res={changed.res} onSeen={seen} />
           </div>
         </header>
         <div />
@@ -200,6 +214,7 @@ function SystemView({
               onEdge={go.edge}
               onType={go.type}
               onMoved={moved}
+              marks={changed.res?.changes}
             />
           </div>
           <Panel
@@ -230,7 +245,7 @@ function BoxCard({
   sys: SystemData;
   onOpen(drill: string): void;
 }) {
-  const { walk, go } = useWalk();
+  const { walk, go, changes } = useWalk();
   const b = walk.nodes[id];
   const ins = sys.edges.filter((e) => e.to === id);
   const outs = sys.edges.filter((e) => e.from === id);
@@ -263,6 +278,7 @@ function BoxCard({
         {b.pkg ? ` · ${b.pkg}/` : ''}
       </div>
       {b.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{b.what}</p>}
+      {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
       {b.drill && (
         <p style={{ marginTop: 10 }}>
           <a onClick={() => onOpen(b.drill!)}>Open {b.drill} →</a>

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { Changes } from './changes';
 import type { Walk, Workflow } from './types';
 
 export interface Goto {
@@ -14,6 +15,7 @@ export interface Ctx {
   wf: Workflow | null;
   wi: string | null;
   go: Goto;
+  changes: Changes | null;
 }
 
 export const WalkCtx = createContext<Ctx | null>(null);

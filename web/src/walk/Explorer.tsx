@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Ask, useAsk } from './Ask';
 import { Legend, Summary, Tracebar } from './Bars';
 import { Canvas, type CanvasHandle } from './Canvas';
+import { SeenButton, useChanges } from './changes';
 import { EdgeCard, MethodCard, NodeCard, TypeCard } from './cards';
 import { WalkCtx, type Goto } from './ctx';
 import { layoutOf, neighbourhood } from './graph';
@@ -39,6 +40,7 @@ export function Explorer({
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
   const asked = useAsk(query);
+  const changed = useChanges(query);
 
   const wf = workflowOf(walk, s.view);
   const ov = !wf;
@@ -102,11 +104,8 @@ export function Explorer({
     return () => removeEventListener('keydown', onKey);
   }, [s, ov]);
 
-  const moved = (nodes: Record<string, Pt> | null) => {
-    const positions = { ...userDoc.current.positions };
-    if (nodes) positions[wf!.id] = { layout: layoutOf(wf!), nodes };
-    else delete positions[wf!.id];
-    userDoc.current = { ...userDoc.current, positions };
+  const save = (doc: User) => {
+    userDoc.current = doc;
     fetch(`/api/user?${query}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -115,6 +114,16 @@ export function Explorer({
       (r) => setSaveFailed(!r.ok),
       () => setSaveFailed(true),
     );
+  };
+  const moved = (nodes: Record<string, Pt> | null) => {
+    const positions = { ...userDoc.current.positions };
+    if (nodes) positions[wf!.id] = { layout: layoutOf(wf!), nodes };
+    else delete positions[wf!.id];
+    save({ ...userDoc.current, positions });
+  };
+  const seen = (head: string) => {
+    save({ ...userDoc.current, seenSha: head });
+    changed.clear();
   };
 
   const onScreen = () => {
@@ -161,7 +170,7 @@ export function Explorer({
   else body = <EdgeCard id={cur.id} />;
 
   return (
-    <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go }}>
+    <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
         <header>
           <div className="brand">{walk.title}</div>
@@ -181,8 +190,9 @@ export function Explorer({
             <span className="meta">
               {walk.commit.slice(0, 7)}
               {walk.dirty ? ' · dirty' : ''}
-              {saveFailed ? ' · could not save your layout' : ''}
+              {saveFailed ? ' · could not save' : ''}
             </span>
+            <SeenButton res={changed.res} onSeen={seen} />
             <button
               title="Ask Claude about what you are looking at (/)"
               onClick={() => dispatch({ t: 'tab', tab: 'ask' })}
@@ -211,6 +221,7 @@ export function Explorer({
                   }
                   onEdge={go.edge}
                   onMoved={moved}
+                  marks={changed.res?.changes}
                 />
                 {!tracing && <Summary key={wf.id} wf={wf} />}
                 <Tracebar

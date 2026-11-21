@@ -21,6 +21,10 @@ Open http://codewalk.localhost:47474. The agent restarts the server if it stops,
 Pick a scope in the sidebar. The address follows it: `/<project>` opens the project's system view
 ([docs/system.md](docs/system.md)), `/<project>/<scope>` a walk's overview and
 `/<project>/<scope>/<workflow>` a workflow. Dragged boxes are saved to `user.json` beside the walk.
+A dot marks a node whose symbol's lines changed (or that is gone) between the commit you last
+marked seen (`seenSha` in `user.json`, by default the commit the walk was built from) and the
+repo's HEAD; its card shows the diff. On a system view a dot marks a package box with any change
+in its package. "Mark seen" stores HEAD and clears the dots.
 Ask (press `/`) runs the `claude` CLI read-only in the walk's repo, so `claude` must be on the PATH
 that `codewalk install` records.
 
