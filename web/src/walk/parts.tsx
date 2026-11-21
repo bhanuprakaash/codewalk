@@ -39,7 +39,6 @@ export function TypeLink({ symbol }: { symbol?: string | null }) {
   return t ? <a onClick={() => go.type(symbol!)}>{t.name}</a> : null;
 }
 
-// turn store.InboxItem / run.Manager in a signature into links to their type cards
 export function LinkTypes({ text }: { text: string }) {
   const { walk, go } = useWalk();
   const out: ReactNode[] = [];

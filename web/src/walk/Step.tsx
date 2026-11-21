@@ -48,12 +48,10 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
   const s = trace[i];
   const e = wf!.edges.find((x) => x.id === s.at);
   const whatif = wf!.whatifs?.find((x) => x.id === wi);
-  // fork markers: on a main step, the what-ifs that branch here; on a what-if's first step, the way back
   const forks = !whatif ? (wf!.whatifs ?? []).filter((x) => x.fork === i) : [];
   const at = walk.nodes[s.at]
     ? walk.nodes[s.at].label
     : `${walk.nodes[e!.from].label} → ${walk.nodes[e!.to].label}`;
-  // the call site, cut to a few lines around it
   const site =
     e?.at &&
     (() => {
@@ -148,7 +146,6 @@ const gname = (f: string) =>
     .replace(/\(\*(\w+)\)\./, '$1.')
     .replace(/^[\w/]+\//, '');
 
-// the State column: memory, rows, files and goroutines where Delve stopped for this step
 export function StateColumn({ trace, tr }: { trace: Step[]; tr: number }) {
   const { walk } = useWalk();
   const st = trace[tr].state;

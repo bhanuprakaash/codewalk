@@ -15,7 +15,6 @@ const Icon = ({ d }: { d: string }) => (
   </svg>
 );
 
-// the right panel: tabs and the history arrows around whichever card is open
 export function Panel({
   open,
   hi,

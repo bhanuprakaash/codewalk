@@ -4,7 +4,6 @@ import type { User, Walk as WalkData } from './types';
 
 type Loaded = { walk: WalkData; user: User } | { error: string } | null;
 
-// loads one walk and its user.json, then hands them to the explorer
 export function Walk({
   project,
   scope,

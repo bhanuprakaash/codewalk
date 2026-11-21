@@ -125,7 +125,6 @@ export function NodeCard({ id }: { id: string }) {
   );
 }
 
-// a type's methods: exported (what other packages call) and internal, collapsed, filterable, each opens its card
 function Methods({ t }: { t: WalkType }) {
   const { go } = useWalk();
   const [q, setQ] = useState('');

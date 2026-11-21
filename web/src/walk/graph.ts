@@ -32,7 +32,6 @@ function anchor(a: Pt, b: Pt): Anchor {
   return { x: a.x, y: a.y + (Math.sign(dy || 1) * NH) / 2, h: false, s: Math.sign(dy || 1) };
 }
 
-// cubic bezier from one box to the other; a bent edge swings sideways so a pair of opposite edges do not overlap
 export function curve(a: Pt, b: Pt, bent: boolean): Pt[] {
   const p0 = anchor(a, b);
   const p3 = anchor(b, a);
@@ -70,7 +69,6 @@ export const isBent = (wf: Workflow, e: Edge) =>
 export const edgeText = (e: Edge) =>
   e.cond ? `${e.cond}${e.label ? ' → ' + e.label : ''}` : (e.label ?? '');
 
-// a label as long as its edge has room for (the gap between the two boxes), else cut with "…"
 export function fitLabel(text: string, Q: Pt[], full: boolean) {
   const room = Math.max(40, Math.hypot(Q[3].x - Q[0].x, Q[3].y - Q[0].y) - 18);
   let t = text;

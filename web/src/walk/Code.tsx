@@ -43,7 +43,6 @@ function colour(line: string): ReactNode[] {
   return out;
 }
 
-// reveal: bring the highlighted line into view of the panel too (a click on a line number elsewhere)
 export function Code({ code, hl, reveal }: { code: CodeBlock; hl?: Lines; reveal?: boolean }) {
   const ranges = hl ?? code.hl ?? [];
   const key = JSON.stringify(ranges);

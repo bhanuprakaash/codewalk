@@ -48,7 +48,6 @@ const same = (a: Entry, b: Entry) =>
   (a as { wf?: string }).wf === (b as { wf?: string }).wf &&
   (a as { wi?: string }).wi === (b as { wi?: string }).wi;
 
-// every card you open is a stop in the history; stepping a trace is one stop, not thirteen
 function record(s: Nav, e: Entry): Nav {
   const cur = s.hist[s.hi];
   if (cur && same(cur, e)) return s;
@@ -72,7 +71,7 @@ export function reducer(walk: Walk) {
     const wf = workflowOf(walk, s.view);
     if (!wf) return s;
     const fork = wf.whatifs?.find((x) => x.id === wi)?.fork;
-    if (wi && i < 0 && fork !== undefined) return trace(s, fork, null); // ← past a what-if's start: back where it forked
+    if (wi && i < 0 && fork !== undefined) return trace(s, fork, null);
     if (!traceOf(wf, wi).length) return s;
     const tr = clamp(i, 0, traceOf(wf, wi).length - 1);
     const entry: Entry = { k: 'step', id: tr, wf: s.view, ...(wi ? { wi } : {}) };

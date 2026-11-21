@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 
 export const valueText = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2));
 
-// every leaf of a value as JSON pointer -> JSON text, to find what changed
 function paths(v: unknown, base = '', out = new Map<string, string>()) {
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>;
@@ -12,7 +11,6 @@ function paths(v: unknown, base = '', out = new Map<string, string>()) {
   return out;
 }
 
-// JSON with each changed or new leaf (compared with the previous value of the same kind) marked
 export function Json({ value, prev }: { value: unknown; prev?: unknown }) {
   if (typeof value === 'string') {
     return <span className={prev !== undefined && prev !== value ? 's chg' : 's'}>{value}</span>;

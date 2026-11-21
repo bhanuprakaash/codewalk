@@ -12,7 +12,6 @@ export interface AskEntry {
   pending: boolean;
 }
 
-// Claude Code answers read-only inside the walk's repo; the server streams one JSON object per line
 export function useAsk(query: string) {
   const [entries, setEntries] = useState<AskEntry[]>([]);
   const session = useRef<string | null>(null);

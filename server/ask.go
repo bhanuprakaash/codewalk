@@ -39,8 +39,6 @@ type streamLine struct {
 	IsError   bool   `json:"is_error"`
 }
 
-// ask answers a question with Claude Code (the user's own login), read-only, run inside the
-// walk's repo, and streams newline-delimited JSON: {step}, {text}, then {done, answer, session}.
 func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 	var body askRequest
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body) != nil || body.Question == "" {
