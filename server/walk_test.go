@@ -134,3 +134,36 @@ printf '{"type":"result","result":"answered in %s","session_id":"s1"}\n' "$PWD"
 		t.Errorf("empty question: got %d, want 400", rec.Code)
 	}
 }
+
+func TestSystem(t *testing.T) {
+	data := t.TempDir()
+	writeFile(t, filepath.Join(data, "p/system.built.json"), `{"title":"P"}`)
+	writeFile(t, filepath.Join(data, "p/system-arch.built.json"), `{"title":"A"}`)
+	writeFile(t, filepath.Join(data, "q/s/walk.json"), `{}`)
+	h := Handler(data)
+
+	tests := []struct {
+		target string
+		status int
+		body   string
+	}{
+		{"/api/system?project=p", 200, `{"title":"P"}`},
+		{"/api/system?project=p&id=arch", 200, `{"title":"A"}`},
+		{"/api/system?project=q", 404, `{"error":"No system view here yet. Run codewalk validate on its system.json."}` + "\n"},
+		{"/api/system?project=p&id=../x", 400, `{"error":"id must be a plain name."}` + "\n"},
+		{"/api/system?project=..", 400, `{"error":"project and scope are required and must be plain names."}` + "\n"},
+		{"/api/system?project=nope", 404, `{"error":"No such project: nope."}` + "\n"},
+	}
+	for _, tt := range tests {
+		rec := do(h, "GET", tt.target, "")
+		if rec.Code != tt.status || rec.Body.String() != tt.body {
+			t.Errorf("%s: got %d %q, want %d %q", tt.target, rec.Code, rec.Body.String(), tt.status, tt.body)
+		}
+	}
+	if rec := do(h, "PUT", "/api/user?project=p", `{"positions":{}}`); rec.Code != 204 {
+		t.Fatalf("PUT project user.json: got %d", rec.Code)
+	}
+	if got, _ := os.ReadFile(filepath.Join(data, "p/user.json")); string(got) != `{"positions":{}}` {
+		t.Errorf("project user.json = %q", got)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -70,6 +71,7 @@ type (
 		Types     map[string]*Type `json:"types"`
 		Funcs     map[string]*Func `json:"funcs"`
 		Sentinels []Sentinel       `json:"sentinels,omitempty"`
+		Imports   []string         `json:"imports,omitempty"`
 	}
 	Impl struct {
 		Iface string `json:"iface"`
@@ -172,6 +174,9 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 				imp := map[string]string{}
 				for _, is := range f.Imports {
 					path := strings.Trim(is.Path.Value, `"`)
+					if !slices.Contains(pk.Imports, path) {
+						pk.Imports = append(pk.Imports, path)
+					}
 					n := filepath.Base(path)
 					if is.Name != nil {
 						imp[is.Name.Name] = n
@@ -185,6 +190,7 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 					pk.Doc = doc.Synopsis(f.Doc.Text())
 				}
 			}
+			sort.Strings(pk.Imports)
 			all = append(all, pa)
 			out.Packages[dir] = pk
 		}

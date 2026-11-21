@@ -8,6 +8,7 @@ import {
   curve,
   edgeText,
   ease,
+  type Graph,
   fitLabel,
   isBent,
   kc,
@@ -17,7 +18,8 @@ import {
   textWidth,
 } from './graph';
 import type { Entry } from './nav';
-import type { Pt, Step, Walk, Workflow } from './types';
+import { BoxIcon } from './icons';
+import type { Pt, Step, WalkNode } from './types';
 
 export interface CanvasHandle {
   fit(ids: string[], minHalf?: number): void;
@@ -26,8 +28,8 @@ export interface CanvasHandle {
 type Cam = { cx: number; cy: number; hw: number; hh: number };
 
 interface Props {
-  walk: Walk;
-  wf: Workflow;
+  nodes: Record<string, WalkNode>;
+  wf: Graph;
   start: Record<string, Pt>;
   step: Step | null;
   stepKey: string;
@@ -35,13 +37,49 @@ interface Props {
   onNode(id: string): void;
   onEdge(id: string): void;
   onMoved(nodes: Record<string, Pt> | null): void;
+  onType?(symbol: string): void;
   ref: Ref<CanvasHandle>;
 }
 
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
+function TypeChips({ types, onType }: { types: string[]; onType?(symbol: string): void }) {
+  let x = -NW / 2;
+  let y = NH / 2 + 6;
+  return (
+    <>
+      {types.map((sym) => {
+        const name = sym.split(':')[1];
+        const w = textWidth(name, 10.5);
+        if (x + w > NW / 2 && x > -NW / 2) {
+          x = -NW / 2;
+          y += 22;
+        }
+        const at = { x, y };
+        x += w + 6;
+        return (
+          <g
+            key={sym}
+            className="tchip"
+            transform={`translate(${at.x},${at.y})`}
+            onClick={(ev) => {
+              ev.stopPropagation();
+              onType?.(sym);
+            }}
+          >
+            <rect width={w} height={18} rx={9} />
+            <text x={7} y={12.5}>
+              {name}
+            </text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 export function Canvas({
-  walk,
+  nodes,
   wf,
   start,
   step,
@@ -50,6 +88,7 @@ export function Canvas({
   onNode,
   onEdge,
   onMoved,
+  onType,
   ref,
 }: Props) {
   const [P, setP] = useState(start);
@@ -296,7 +335,7 @@ export function Canvas({
           </g>
           <g id="nodes">
             {wf.nodes.map((id) => {
-              const n = walk.nodes[id];
+              const n = nodes[id];
               const inStep =
                 stepNode === id || (stepEdge && (stepEdge.from === id || stepEdge.to === id));
               const exits = (n.errs ?? []).length;
@@ -321,10 +360,26 @@ export function Canvas({
                   onPointerLeave={() => setHover((h) => (h === id ? null : h))}
                 >
                   <rect className="box" x={-NW / 2} y={-NH / 2} width={NW} height={NH} rx={12} />
-                  <rect x={-NW / 2 + 10} y={-14} width={28} height={28} rx={8} fill={kc(n.kind)} />
-                  <text className="gt" x={-NW / 2 + 24} y={4.5} textAnchor="middle">
-                    {KIND[n.kind].g}
-                  </text>
+                  {n.icon ? (
+                    <>
+                      <rect className="ib" x={-NW / 2 + 10} y={-14} width={28} height={28} rx={8} />
+                      <BoxIcon icon={n.icon} kind={n.kind} x={-NW / 2 + 15} y={-9} size={18} />
+                    </>
+                  ) : (
+                    <>
+                      <rect
+                        x={-NW / 2 + 10}
+                        y={-14}
+                        width={28}
+                        height={28}
+                        rx={8}
+                        fill={kc(n.kind)}
+                      />
+                      <text className="gt" x={-NW / 2 + 24} y={4.5} textAnchor="middle">
+                        {KIND[n.kind].g}
+                      </text>
+                    </>
+                  )}
                   <text className="lb" x={-NW / 2 + 48} y={-3}>
                     {trunc(n.label, 22)}
                   </text>
@@ -353,6 +408,18 @@ export function Canvas({
                       go
                     </text>
                   )}
+                  {n.drill && (
+                    <text
+                      className="bd"
+                      x={NW / 2 - 8}
+                      y={-NH / 2 + 13}
+                      textAnchor="end"
+                      fill="var(--focus)"
+                    >
+                      opens ›
+                    </text>
+                  )}
+                  {n.types && <TypeChips types={n.types} onType={onType} />}
                   {n.kind === 'you' && (
                     <rect
                       x={-NW / 2 - 4}

@@ -223,19 +223,20 @@ type Breakpoint struct {
 	Line int    `json:"line"`
 }
 
-// Result is what Build found. Walk is set only when there are no errors; Spec whenever the
-// storyboard has a capture and a state.
+// Result is what Build found. Walk (or System, for a system view) is set only when there are no
+// errors; Spec whenever the storyboard has a capture and a state.
 type Result struct {
 	Walk     *Walk
+	System   *System
 	Spec     *Spec
 	Warnings []string
 	Errors   []string
 	Summary  string
 
-	walkPath, specPath string
+	outPath, specPath string
 }
 
-// Write writes dlv-spec.json when there is a spec, and walk.json when there are no errors.
+// Write writes dlv-spec.json when there is a spec, and the built file when there are no errors.
 func (r *Result) Write() error {
 	if r.Spec != nil {
 		if err := writeJSON(r.specPath, r.Spec, true); err != nil {
@@ -245,10 +246,13 @@ func (r *Result) Write() error {
 	if len(r.Errors) > 0 {
 		return nil
 	}
-	return writeJSON(r.walkPath, r.Walk, false)
+	if r.System != nil {
+		return writeJSON(r.outPath, r.System, false)
+	}
+	return writeJSON(r.outPath, r.Walk, false)
 }
 
-func (r *Result) WalkPath() string { return r.walkPath }
+func (r *Result) OutPath() string { return r.outPath }
 
 func writeJSON(path string, v any, indent bool) error {
 	b, err := marshal(v, indent)

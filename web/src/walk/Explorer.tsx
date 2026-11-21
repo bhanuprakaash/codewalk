@@ -200,7 +200,7 @@ export function Explorer({
                 <Canvas
                   key={wf.id}
                   ref={canvas}
-                  walk={walk}
+                  nodes={walk.nodes}
                   wf={wf}
                   start={startOf(wf, userDoc.current)}
                   step={step}

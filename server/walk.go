@@ -33,8 +33,30 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 		w.Write(raw)
 	})
 
+	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, r *http.Request) {
+		dir, ok := dirOf(w, r, dataDir, false)
+		if !ok {
+			return
+		}
+		name, id := "system.built.json", r.URL.Query().Get("id")
+		if id != "" {
+			if !plainName(id) {
+				writeError(w, http.StatusBadRequest, "id must be a plain name.")
+				return
+			}
+			name = "system-" + id + ".built.json"
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			writeError(w, fileStatus(err), "No system view here yet. Run codewalk validate on its "+strings.TrimSuffix(name, ".built.json")+".json.")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(raw)
+	})
+
 	mux.HandleFunc("GET /api/user", func(w http.ResponseWriter, r *http.Request) {
-		dir, ok := scopeDir(w, r, dataDir)
+		dir, ok := dirOf(w, r, dataDir, false)
 		if !ok {
 			return
 		}
@@ -51,7 +73,7 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 	})
 
 	mux.HandleFunc("PUT /api/user", func(w http.ResponseWriter, r *http.Request) {
-		dir, ok := scopeDir(w, r, dataDir)
+		dir, ok := dirOf(w, r, dataDir, false)
 		if !ok {
 			return
 		}
@@ -105,19 +127,36 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 // scopeDir maps ?project=&scope= to <data>/<project>/<scope>. Both must be a single plain name,
 // so a request can never reach outside the data dir.
 func scopeDir(w http.ResponseWriter, r *http.Request, dataDir string) (string, bool) {
+	return dirOf(w, r, dataDir, true)
+}
+
+// dirOf is scopeDir that also accepts a missing scope, meaning the project folder itself.
+func dirOf(w http.ResponseWriter, r *http.Request, dataDir string, needScope bool) (string, bool) {
 	project, scope := r.URL.Query().Get("project"), r.URL.Query().Get("scope")
-	for _, name := range []string{project, scope} {
-		if !filepath.IsLocal(name) || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
+	names := []string{project}
+	if needScope || scope != "" {
+		names = append(names, scope)
+	}
+	for _, name := range names {
+		if !plainName(name) {
 			writeError(w, http.StatusBadRequest, "project and scope are required and must be plain names.")
 			return "", false
 		}
 	}
 	dir := filepath.Join(dataDir, project, scope)
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		writeError(w, http.StatusNotFound, "No such scope: "+project+"/"+scope+".")
+		if scope == "" {
+			writeError(w, http.StatusNotFound, "No such project: "+project+".")
+		} else {
+			writeError(w, http.StatusNotFound, "No such scope: "+project+"/"+scope+".")
+		}
 		return "", false
 	}
 	return dir, true
+}
+
+func plainName(name string) bool {
+	return filepath.IsLocal(name) && !strings.ContainsAny(name, `/\`) && !strings.HasPrefix(name, ".")
 }
 
 func readWalkInfo(dir string) (walkInfo, error) {

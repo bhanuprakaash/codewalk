@@ -1,4 +1,15 @@
-export type Kind = 'start' | 'func' | 'type' | 'store' | 'outside' | 'you' | 'output' | 'exit';
+export type Kind =
+  | 'start'
+  | 'func'
+  | 'type'
+  | 'store'
+  | 'outside'
+  | 'you'
+  | 'output'
+  | 'exit'
+  | 'ui'
+  | 'service'
+  | 'package';
 export type Pt = { x: number; y: number };
 export type Lines = [number, number][];
 
@@ -43,6 +54,9 @@ export interface WalkNode {
   locks?: string[];
   selects?: { line: number; text: string }[];
   code?: CodeBlock;
+  icon?: string;
+  types?: string[];
+  drill?: string;
 }
 export interface Method {
   name: string;
@@ -142,6 +156,23 @@ export interface Walk {
   nodes: Record<string, WalkNode>;
   types: Record<string, WalkType>;
   workflows: Workflow[];
+}
+export interface SystemEdge {
+  id: string;
+  from: string;
+  to: string;
+  kind: 'calls' | 'http' | 'sse' | 'mcp' | 'imports' | 'stores';
+  label: string;
+  what: string;
+}
+export interface System {
+  title: string;
+  summary: string;
+  repo: string;
+  commit: string;
+  boxes: Record<string, WalkNode & { pos: Pt }>;
+  edges: SystemEdge[];
+  types: Record<string, WalkType>;
 }
 export interface User {
   positions?: Record<string, { layout: string; nodes: Record<string, Pt> }>;

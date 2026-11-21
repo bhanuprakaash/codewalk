@@ -39,6 +39,9 @@ func TestScan(t *testing.T) {
 	if s := res.Packages["app"].Sentinels; len(s) != 1 || s[0].Name != "ErrClosed" {
 		t.Errorf("sentinels = %+v", s)
 	}
+	if got := res.Packages["app"].Imports; !slices.Equal(got, []string{"errors", "example.com/tiny/store", "sync"}) {
+		t.Errorf("imports = %q", got)
+	}
 	if want := []Impl{{Iface: "store.Putter", Type: "store.Store"}}; !slices.Equal(res.Implements, want) {
 		t.Errorf("implements = %+v", res.Implements)
 	}
