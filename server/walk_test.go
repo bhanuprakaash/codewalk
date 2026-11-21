@@ -123,6 +123,7 @@ func TestAsk(t *testing.T) {
 	data, repo, bin := t.TempDir(), t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(data, "p/s/walk.json"), `{"repo":"`+repo+`","scope":"run/","commit":"0123456789"}`)
 	writeFile(t, filepath.Join(bin, "claude"), `#!/bin/sh
+printf '%s\n' "$@" > "$0.argv"
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"'"$PWD"'/run/run.go"}},{"type":"text","text":"partial"}]}}'
 printf '{"type":"result","result":"answered in %s","session_id":"s1"}\n' "$PWD"
 `)
@@ -141,6 +142,22 @@ printf '{"type":"result","result":"answered in %s","session_id":"s1"}\n' "$PWD"
 	}
 	if rec := do(h, "POST", "/api/ask?project=p&scope=s", `{"question":""}`); rec.Code != 400 {
 		t.Errorf("empty question: got %d, want 400", rec.Code)
+	}
+
+	for _, session := range []string{"--model", "s1", "0123456789abcdef", "0123456789ab-cdef-0123-4567-89abcdef0123", "01234567-89AB-CDEF-0123-456789ABCDEF"} {
+		body := `{"question":"why?","session":"` + session + `"}`
+		if rec := do(h, "POST", "/api/ask?project=p&scope=s", body); rec.Code != 400 {
+			t.Errorf("session %q: got %d, want 400", session, rec.Code)
+		}
+	}
+	os.Remove(filepath.Join(bin, "claude.argv"))
+	uuid := "01234567-89ab-cdef-0123-456789abcdef"
+	if rec := do(h, "POST", "/api/ask?project=p&scope=s", `{"question":"--help","session":"`+uuid+`"}`); rec.Code != 200 {
+		t.Fatalf("good session: got %d %q", rec.Code, rec.Body.String())
+	}
+	argv, _ := os.ReadFile(filepath.Join(bin, "claude.argv"))
+	if !strings.Contains(string(argv), "\n--resume\n"+uuid+"\n--\n") || !strings.HasSuffix(string(argv), "Question: --help\n") {
+		t.Errorf("argv = %q, want --resume %s and the prompt after --", argv, uuid)
 	}
 }
 
