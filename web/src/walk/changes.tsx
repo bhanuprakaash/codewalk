@@ -84,7 +84,13 @@ export function SeenButton({ res, onSeen }: { res: Changes | null; onSeen(head: 
       onClick={() => onSeen(res.head)}
     >
       <i aria-hidden="true" />
-      {n} changed since you looked · <b>Mark seen</b>
+      <span>
+        {n} changed
+        <span className="more">
+          {' · '}
+          <b>Mark seen</b>
+        </span>
+      </span>
     </button>
   );
 }

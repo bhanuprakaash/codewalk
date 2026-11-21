@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KIND } from './graph';
 import { BoxIcon } from './icons';
 import type { Step, Walk, WhatIf, Workflow } from './types';
@@ -30,29 +30,53 @@ export function Legend({
   edges: string[];
   system?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => box.current?.contains(e.target as Node) || setOpen(false);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+    };
+    addEventListener('pointerdown', away);
+    addEventListener('keydown', esc, true);
+    return () => {
+      removeEventListener('pointerdown', away);
+      removeEventListener('keydown', esc, true);
+    };
+  }, [open]);
   return (
-    <div id="legend">
-      {Object.keys(system ? SYSTEM_NAMES : KIND)
-        .filter((k) => kinds.includes(k))
-        .map((k) => (
-          <span className="it" key={k}>
-            <BoxIcon kind={k} size={22} />
-            {system ? SYSTEM_NAMES[k] : KIND[k as keyof typeof KIND].name}
+    <div id="legend" ref={box}>
+      <button aria-expanded={open} onClick={() => setOpen(!open)}>
+        Legend
+      </button>
+      {open && (
+        <div className="pop">
+          {Object.keys(system ? SYSTEM_NAMES : KIND)
+            .filter((k) => kinds.includes(k))
+            .map((k) => (
+              <span className="it" key={k}>
+                <BoxIcon kind={k} size={22} />
+                {system ? SYSTEM_NAMES[k] : KIND[k as keyof typeof KIND].name}
+              </span>
+            ))}
+          <span className="it">
+            <span className="chg-sw" aria-hidden="true" />
+            Changed
           </span>
-        ))}
-      <span className="it">
-        <span className="chg-sw" aria-hidden="true" />
-        Changed
-      </span>
-      <span className="bar" />
-      {EDGES.filter(([, , ks]) => ks.some((k) => edges.includes(k))).map(([k, name]) => (
-        <span className={`it edge ${k}`} key={k}>
-          <svg width="30" height="10">
-            <path className="ln" d="M1,5 L27,5" fill="none" markerEnd="url(#ar)" />
-          </svg>
-          {name}
-        </span>
-      ))}
+          <span className="bar" />
+          {EDGES.filter(([, , ks]) => ks.some((k) => edges.includes(k))).map(([k, name]) => (
+            <span className={`it edge ${k}`} key={k}>
+              <svg width="30" height="10">
+                <path className="ln" d="M1,5 L27,5" fill="none" markerEnd="url(#ar)" />
+              </svg>
+              {name}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
