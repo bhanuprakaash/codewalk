@@ -14,20 +14,25 @@ export interface Changes {
 
 export function useChanges(query: string) {
   const [res, setRes] = useState<Changes | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     fetch(`/api/changes?${query}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(body?.error ?? r.statusText);
+        return body;
+      })
       .then(
-        (d) => live && setRes(d),
-        () => {},
+        (d) => live && (setRes(d), setError(null)),
+        (e: Error) => live && setError(e.message),
       );
     return () => {
       live = false;
     };
   }, [query]);
   const clear = () => res && setRes({ ...res, base: res.head, changes: {} });
-  return { res, clear };
+  return { res, error, clear };
 }
 
 export function ChangeSec({ change, base }: { change?: Change; base: string }) {

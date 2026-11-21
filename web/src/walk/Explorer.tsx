@@ -202,6 +202,7 @@ export function Explorer({
               {walk.commit.slice(0, 7)}
               {walk.dirty ? ' · dirty' : ''}
               {saveFailed ? ' · could not save' : ''}
+              {changed.error ? ` · ${changed.error}` : ''}
             </span>
             {lost.length > 0 && (
               <button onClick={() => open({ k: 'orphans', id: '' })}>

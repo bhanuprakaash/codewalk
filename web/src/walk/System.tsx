@@ -10,7 +10,7 @@ import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
 import { Panel } from './Panel';
 import { PatternsCard } from './patterns';
 import { Chip, Sec } from './parts';
-import { patchUser } from './user';
+import { loadUser, patchUser } from './user';
 import type { Pt, System as SystemData, User, Walk } from './types';
 
 type Loaded = { sys: SystemData; user: User } | { error: string } | null;
@@ -37,11 +37,7 @@ export function System({
         return { error: body?.error ?? res.statusText };
       }
       const sys = await res.json();
-      const user = await fetch(`/api/user?${query}`).then(
-        (r) => (r.ok ? r.json() : {}),
-        () => ({}),
-      );
-      return { sys, user };
+      return { sys, user: await loadUser(query) };
     })()
       .catch(() => ({ error: 'Could not reach the codewalk server. Is it running?' }))
       .then((d) => live && setData(d));
@@ -212,6 +208,7 @@ function SystemView({
             <span className="meta">
               {sys.commit.slice(0, 7)}
               {saveFailed ? ' · could not save' : ''}
+              {changed.error ? ` · ${changed.error}` : ''}
             </span>
             <button onClick={() => open('patterns', '')}>Go patterns</button>
             {lost.length > 0 && (

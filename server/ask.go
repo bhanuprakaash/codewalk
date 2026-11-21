@@ -131,7 +131,12 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 			break
 		}
 	}
-	if err := cmd.Wait(); err != nil && !finished && answer == "" {
+	err = cmd.Wait()
+	if finished {
+		return
+	}
+	msg := "Claude Code ended without an answer."
+	if err != nil {
 		var exit *exec.ExitError
 		code := -1
 		if errors.As(err, &exit) {
@@ -143,6 +148,7 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 				last = l
 			}
 		}
-		send(map[string]any{"done": true, "error": fmt.Sprintf("Claude Code could not answer (exit %d). %s", code, last)})
+		msg = fmt.Sprintf("Claude Code could not answer (exit %d). %s", code, last)
 	}
+	send(map[string]any{"done": true, "error": msg})
 }

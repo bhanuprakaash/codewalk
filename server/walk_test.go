@@ -215,6 +215,29 @@ printf '{"type":"result","result":"answered in %s","session_id":"s1"}\n' "$PWD"
 	}
 }
 
+func TestAsk_NoResult(t *testing.T) {
+	data, repo, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(data, "p/s/walk.json"), `{"repo":"`+repo+`","scope":"run/","commit":"0123456789"}`)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	h := Handler(data)
+	text := `echo '{"type":"assistant","message":{"content":[{"type":"text","text":"partial"}]}}'` + "\n"
+
+	for _, tt := range []struct{ script, want string }{
+		{text, `{"done":true,"error":"Claude Code ended without an answer."}`},
+		{text + "echo boom >&2\nexit 3\n", `{"done":true,"error":"Claude Code could not answer (exit 3). boom"}`},
+	} {
+		writeFile(t, filepath.Join(bin, "claude"), "#!/bin/sh\n"+tt.script)
+		if err := os.Chmod(filepath.Join(bin, "claude"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rec := do(h, "POST", "/api/ask?project=p&scope=s", `{"question":"why?"}`)
+		want := `{"text":"partial"}` + "\n" + tt.want + "\n"
+		if rec.Code != 200 || rec.Body.String() != want {
+			t.Errorf("got %d %q, want 200 %q", rec.Code, rec.Body.String(), want)
+		}
+	}
+}
+
 func TestSystem(t *testing.T) {
 	data := t.TempDir()
 	writeFile(t, filepath.Join(data, "p/system.built.json"), `{"title":"P"}`)
