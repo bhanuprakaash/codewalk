@@ -1,0 +1,89 @@
+:root {
+  --bg: #fafaf8;
+  --panel: #f1f0ec;
+  --line: #e2e0d9;
+  --text: #2b2a27;
+  --muted: #76736b;
+  --accent: #3d6b8f;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 20px 12px;
+  overflow-y: auto;
+}
+
+.sidebar h1 {
+  font-size: 15px;
+  margin: 0 8px 20px;
+}
+
+.sidebar h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 16px 8px 6px;
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.sidebar button:hover {
+  background: var(--line);
+}
+
+.sidebar button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.main {
+  padding: 32px;
+}
+
+.main h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 8px;
+}
