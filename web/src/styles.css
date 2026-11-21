@@ -1343,3 +1343,6 @@ pre.diff .hunk {
   margin: 0;
   color: var(--muted);
 }
+.ov-patterns {
+  max-width: 760px;
+}

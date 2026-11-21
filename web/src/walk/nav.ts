@@ -2,7 +2,7 @@ import { clamp } from './graph';
 import type { Step, Walk, Workflow } from './types';
 
 export type Entry =
-  | { k: 'node' | 'type' | 'method' | 'orphans'; id: string }
+  | { k: 'node' | 'type' | 'method' | 'func' | 'orphans' | 'patterns'; id: string }
   | { k: 'edge'; id: string; wf: string }
   | { k: 'step'; id: number; wf: string; wi?: string };
 

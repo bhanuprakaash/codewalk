@@ -28,6 +28,11 @@ in its package. "Mark seen" stores HEAD and clears the dots.
 A note on a node, type or method (or a system box) is kept in `user.json` under `notes`, keyed
 by symbol (`node:<id>` for a node without one, `box:<id>` for a box), so it survives a rebuild. A
 note whose target is gone after a rebuild is listed under "Orphaned notes" with its old key.
+`codewalk validate` also lists the Go patterns it finds in the scanned packages (goroutine +
+channel, select, context cancel, mutex-guarded state, interface with several impls, sentinel
+errors checked with `errors.Is`): on a walk's overview, and behind "Go patterns" on a system view.
+Each link opens that symbol's node card when it is on the walk, otherwise its method, func or type
+card. The list comes from scan facts only; the one-line explanations are fixed text.
 Ask (press `/`) runs the `claude` CLI read-only in the walk's repo, so `claude` must be on the PATH
 that `codewalk install` records.
 

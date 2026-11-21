@@ -249,23 +249,32 @@ export function TypeCard({ symbol }: { symbol: string }) {
 
 export function MethodCard({ id }: { id: string }) {
   const { walk } = useWalk();
-  const [line, setLine] = useState<number | null>(null);
   const [typeSym, name] = id.split('|');
   const t = walk.types[typeSym];
   const m = t?.methods.find((x) => x.name === name);
   if (!t || !m) return null;
+  return <FuncBody m={m} title={`${t.name.split('.').pop()}.${name}`} typeSym={typeSym} />;
+}
+
+export function FuncCard({ symbol }: { symbol: string }) {
+  const { walk } = useWalk();
+  const m = walk.funcs?.[symbol];
+  if (!m) return null;
+  return <FuncBody m={m} title={m.name} />;
+}
+
+function FuncBody({ m, title, typeSym }: { m: Method; title: string; typeSym?: string }) {
+  const [line, setLine] = useState<number | null>(null);
   return (
     <>
       <div className="card-h">
         <div className="gl" style={{ background: 'var(--k-func)' }}>
           ƒ
         </div>
-        <h2>
-          {t.name.split('.').pop()}.{name}
-        </h2>
+        <h2>{title}</h2>
       </div>
       <div className="loc">
-        {m.path}:{m.line} · {isPublic(name) ? 'exported' : 'internal'} · not on this walk's map
+        {m.path}:{m.line} · {isPublic(m.name) ? 'exported' : 'internal'} · not on this map
       </div>
       {m.doc ? (
         <p style={{ lineHeight: 1.6, margin: 0 }}>{m.doc}</p>
@@ -275,13 +284,15 @@ export function MethodCard({ id }: { id: string }) {
       <NoteSec k={m.symbol} />
       <Sec h="In → out">
         <div className="sig">
-          <span style={{ color: 'var(--muted)' }}>
-            (<TypeLink symbol={typeSym} />){' '}
-          </span>
+          {typeSym && (
+            <span style={{ color: 'var(--muted)' }}>
+              (<TypeLink symbol={typeSym} />){' '}
+            </span>
+          )}
           <LinkTypes text={m.sig} />
         </div>
       </Sec>
-      <Rows errs={m.errs} gos={m.gos} locks={m.locks} onLine={setLine} />
+      <Rows errs={m.errs} gos={m.gos} locks={m.locks} selects={m.selects} onLine={setLine} />
       <Sec h="Code">
         <Code code={m.code} hl={[[line ?? m.line, line ?? m.line]]} reveal={line !== null} />
       </Sec>
