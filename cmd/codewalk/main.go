@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bhanuprakaash/codewalk/scan"
 	"github.com/bhanuprakaash/codewalk/server"
 )
 
@@ -25,7 +27,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall")
+		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>...")
 	}
 	switch args[0] {
 	case "serve":
@@ -34,8 +36,10 @@ func run(args []string) error {
 		return install()
 	case "uninstall":
 		return uninstall()
+	case "scan":
+		return scanCmd(args[1:])
 	}
-	return fmt.Errorf("unknown command %q (want serve, install or uninstall)", args[0])
+	return fmt.Errorf("unknown command %q (want serve, install, uninstall or scan)", args[0])
 }
 
 func serve(args []string) error {
@@ -59,6 +63,19 @@ func serve(args []string) error {
 	}
 	fmt.Printf("codewalk listening on http://codewalk.localhost:%d (data %s)\n", *port, *data)
 	return http.Serve(ln, server.Handler(*data))
+}
+
+func scanCmd(args []string) error {
+	if len(args) < 2 {
+		return errors.New("usage: codewalk scan <repo> <pkg dir>...")
+	}
+	res, err := scan.Scan(args[0], args[1:])
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", " ")
+	return enc.Encode(res)
 }
 
 func portHolder(port int) string {
