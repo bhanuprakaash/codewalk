@@ -11,8 +11,17 @@ import (
 
 func do(h http.Handler, method, target, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(method, target, strings.NewReader(body)))
+	h.ServeHTTP(rec, newRequest(method, target, body))
 	return rec
+}
+
+func newRequest(method, target, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Host = "127.0.0.1:47474"
+	if method != http.MethodGet {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
 }
 
 func writeFile(t *testing.T, path, content string) {

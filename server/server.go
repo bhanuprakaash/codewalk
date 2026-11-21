@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bhanuprakaash/codewalk/web"
@@ -33,7 +37,39 @@ func Handler(dataDir string) http.Handler {
 	changeRoutes(mux, dataDir)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", spa(web.FS()))
-	return mux
+	return guard(mux)
+}
+
+var localHosts = []string{"codewalk.localhost", "localhost", "127.0.0.1"}
+
+// guard keeps other web pages from driving the server through the browser: DNS rebinding changes
+// the Host, and a cross-site form post carries a foreign Origin or a non-JSON content type.
+func guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, port, err := net.SplitHostPort(r.Host)
+		if err != nil {
+			host, port = r.Host, ""
+		}
+		if !slices.Contains(localHosts, host) {
+			writeError(w, http.StatusForbidden, "This host is not allowed.")
+			return
+		}
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch:
+			if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+				writeError(w, http.StatusUnsupportedMediaType, "Send application/json.")
+				return
+			}
+			if origin := r.Header.Get("Origin"); origin != "" {
+				u, err := url.Parse(origin)
+				if err != nil || u.Scheme != "http" || !slices.Contains(localHosts, u.Hostname()) || u.Port() != port {
+					writeError(w, http.StatusForbidden, "This origin is not allowed.")
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func spa(ui fs.FS) http.Handler {
