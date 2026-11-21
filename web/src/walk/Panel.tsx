@@ -21,6 +21,7 @@ export function Panel({
   count,
   bodyKey,
   tab,
+  ask = true,
   onGo,
   onTab,
   onClose,
@@ -31,6 +32,7 @@ export function Panel({
   count: number;
   bodyKey: string;
   tab: 'details' | 'ask';
+  ask?: boolean;
   onGo(d: number): void;
   onTab(tab: 'details' | 'ask'): void;
   onClose(): void;
@@ -59,12 +61,16 @@ export function Panel({
           <Icon d="M6 3 L11 8 L6 13" />
         </button>
         <span id="navPos">{count > 1 ? `${hi + 1}/${count}` : ''}</span>
-        <button className={tab === 'details' ? 'on' : ''} onClick={() => onTab('details')}>
-          Details
-        </button>
-        <button className={tab === 'ask' ? 'on' : ''} onClick={() => onTab('ask')}>
-          Ask
-        </button>
+        {ask && (
+          <>
+            <button className={tab === 'details' ? 'on' : ''} onClick={() => onTab('details')}>
+              Details
+            </button>
+            <button className={tab === 'ask' ? 'on' : ''} onClick={() => onTab('ask')}>
+              Ask
+            </button>
+          </>
+        )}
         <button className="x" title="Close (Esc)" onClick={onClose}>
           ✕
         </button>

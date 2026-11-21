@@ -43,8 +43,9 @@ type builder struct {
 	res     *Result
 }
 
-// Build checks the storyboard at sbPath and builds its walk. Problems with the storyboard are in
-// Result.Errors; the error return is for what stops the check itself (no file, no repo, no scan).
+// Build checks the storyboard (or system view) at sbPath and builds its walk. Problems with the
+// file are in Result.Errors; the error return is for what stops the check itself (no file, no
+// repo, no scan).
 func Build(sbPath string) (*Result, error) {
 	sbPath, err := filepath.Abs(sbPath)
 	if err != nil {
@@ -53,6 +54,9 @@ func Build(sbPath string) (*Result, error) {
 	raw, err := os.ReadFile(sbPath)
 	if err != nil {
 		return nil, err
+	}
+	if IsSystem(sbPath) {
+		return buildSystem(sbPath, raw)
 	}
 	var sb storyboard
 	if err := json.Unmarshal(raw, &sb); err != nil {
@@ -74,7 +78,7 @@ func Build(sbPath string) (*Result, error) {
 		sb: &sb, repo: repo, outDir: outDir, scan: sc,
 		files: map[string][]string{}, sources: map[string]Source{},
 		caps: map[string]json.RawMessage{}, capErrs: map[string]error{},
-		res: &Result{walkPath: filepath.Join(outDir, "walk.json")},
+		res: &Result{outPath: filepath.Join(outDir, "walk.json")},
 	}
 	if sb.Capture != "" {
 		b.capDir = filepath.Join(outDir, sb.Capture)

@@ -28,7 +28,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json>")
+		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json | system.json>")
 	}
 	switch args[0] {
 	case "serve":
@@ -82,10 +82,10 @@ func scanCmd(args []string) error {
 }
 
 // validate prints what it found the way a person reads it and exits 1 on any error, so a
-// storyboard problem is not wrapped in "codewalk:".
+// storyboard or system problem is not wrapped in "codewalk:".
 func validate(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: codewalk validate <storyboard.json>")
+		return errors.New("usage: codewalk validate <storyboard.json | system.json>")
 	}
 	res, err := walk.Build(args[0])
 	if err != nil {
@@ -104,7 +104,7 @@ func validate(args []string) error {
 		fmt.Printf("\n%d error(s); nothing written\n", len(res.Errors))
 		os.Exit(1)
 	}
-	fmt.Printf("\nwrote %s\n%s\n", res.WalkPath(), res.Summary)
+	fmt.Printf("\nwrote %s\n%s\n", res.OutPath(), res.Summary)
 	return nil
 }
 

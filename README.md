@@ -18,7 +18,8 @@ Open http://codewalk.localhost:47474. The agent restarts the server if it stops,
 
 ## Use
 
-Pick a scope in the sidebar. The address follows it: `/<project>/<scope>` opens the overview and
+Pick a scope in the sidebar. The address follows it: `/<project>` opens the project's system view
+([docs/system.md](docs/system.md)), `/<project>/<scope>` a walk's overview and
 `/<project>/<scope>/<workflow>` a workflow. Dragged boxes are saved to `user.json` beside the walk.
 Ask (press `/`) runs the `claude` CLI read-only in the walk's repo, so `claude` must be on the PATH
 that `codewalk install` records.

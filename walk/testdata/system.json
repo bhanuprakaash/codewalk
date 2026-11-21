@@ -1,0 +1,14 @@
+{
+  "title": "tiny",
+  "repo": "mod",
+  "summary": "A caller saves notes through the app into the store.",
+  "boxes": [
+    { "id": "caller", "kind": "ui", "what": "Calls Save with a line of text.", "icon": "browser", "pos": [0, 0] },
+    { "id": "app", "kind": "package", "pkg": "app", "what": "Takes notes from callers.", "types": ["app:Server"], "drill": "walk", "pos": [1, 0] },
+    { "id": "store", "kind": "package", "pkg": "store", "what": "Keeps the notes.", "icon": "si:go", "types": ["store:Store", "store:Note"], "pos": [2, 0] }
+  ],
+  "edges": [
+    { "from": "caller", "to": "app", "kind": "calls", "label": "Save(text)", "what": "One call per note." },
+    { "from": "app", "to": "store", "kind": "imports" }
+  ]
+}

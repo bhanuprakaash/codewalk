@@ -1,4 +1,14 @@
-import type { Edge, Kind, Pt, Workflow } from './types';
+import type { Kind, Pt } from './types';
+
+export type GEdge = {
+  id: string;
+  from: string;
+  to: string;
+  kind: string;
+  label?: string;
+  cond?: string;
+};
+export type Graph = { nodes: string[]; edges: GEdge[]; pos: Record<string, Pt> };
 
 export const NW = 210;
 export const NH = 58;
@@ -12,6 +22,9 @@ export const KIND: Record<Kind, { g: string; name: string }> = {
   you: { g: '✋', name: 'You' },
   output: { g: '✓', name: 'Output' },
   exit: { g: '⤫', name: 'Early exit' },
+  ui: { g: '▢', name: 'UI' },
+  service: { g: '⚙', name: 'Service' },
+  package: { g: '▣', name: 'Package' },
 };
 export const kc = (k: string) => `var(--k-${k})`;
 export const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -62,11 +75,11 @@ export function bez(Q: Pt[], t: number): Pt {
 export const pathOf = (Q: Pt[]) =>
   `M${Q[0].x},${Q[0].y} C${Q[1].x},${Q[1].y} ${Q[2].x},${Q[2].y} ${Q[3].x},${Q[3].y}`;
 
-export const isBent = (wf: Workflow, e: Edge) =>
+export const isBent = (wf: Graph, e: GEdge) =>
   e.kind === 'asks' ||
   (e.from > e.to && wf.edges.some((x) => x !== e && x.from === e.to && x.to === e.from));
 
-export const edgeText = (e: Edge) =>
+export const edgeText = (e: GEdge) =>
   e.cond ? `${e.cond}${e.label ? ' → ' + e.label : ''}` : (e.label ?? '');
 
 export function fitLabel(text: string, Q: Pt[], full: boolean) {
@@ -78,7 +91,7 @@ export function fitLabel(text: string, Q: Pt[], full: boolean) {
   return { text: t, width: textWidth(t, 10.5) };
 }
 
-export function neighbourhood(wf: Workflow, id: string) {
+export function neighbourhood(wf: Graph, id: string) {
   const ids = new Set([id]);
   const es = new Set<string>();
   for (const e of wf.edges) {
@@ -107,7 +120,7 @@ export function boxOf(P: Record<string, Pt>, ids: Iterable<string>) {
 }
 
 // saved drags belong to the layout they were made on; a rebuild with new positions starts fresh
-export function layoutOf(wf: Workflow) {
+export function layoutOf(wf: Graph) {
   let h = 0;
   for (const c of JSON.stringify(wf.pos)) h = (h * 31 + c.charCodeAt(0)) | 0;
   return String(h);
