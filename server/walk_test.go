@@ -1,11 +1,13 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -73,30 +75,66 @@ func TestUser(t *testing.T) {
 		t.Fatal("GET created user.json")
 	}
 
-	doc := `{"positions":{"send":{"nodes":{"ui":{"x":1,"y":2}}}},"notes":["kept"]}`
-	if rec := do(h, "PUT", url, doc); rec.Code != 204 {
-		t.Fatalf("PUT: got %d %q, want 204", rec.Code, rec.Body.String())
+	user := func() string { b, _ := os.ReadFile(filepath.Join(data, "p/s/user.json")); return string(b) }
+	patch := func(body string) {
+		t.Helper()
+		if rec := do(h, "PATCH", url, body); rec.Code != 204 {
+			t.Fatalf("PATCH %s: got %d %q, want 204", body, rec.Code, rec.Body.String())
+		}
 	}
-	if got, _ := os.ReadFile(filepath.Join(data, "p/s/user.json")); string(got) != doc {
-		t.Fatalf("user.json on disk: got %q, want %q", got, doc)
+	patch(`{"positions":{"send":{"nodes":{"ui":{"x":1,"y":2}}}}}`)
+	patch(`{"seenSha":"abc1234"}`)
+	patch(`{"positions":{"recv":{"nodes":{}}},"notes":{"a":"one","b":"two"}}`)
+	want := `{"notes":{"a":"one","b":"two"},"positions":{"recv":{"nodes":{}},"send":{"nodes":{"ui":{"x":1,"y":2}}}},"seenSha":"abc1234"}`
+	if user() != want {
+		t.Fatalf("user.json after patches: got %q, want %q", user(), want)
 	}
-	if rec := do(h, "GET", url, ""); rec.Body.String() != doc {
-		t.Fatalf("GET after PUT: got %q, want %q", rec.Body.String(), doc)
+	if rec := do(h, "GET", url, ""); rec.Body.String() != want {
+		t.Fatalf("GET: got %q, want %q", rec.Body.String(), want)
+	}
+	patch(`{"notes":{"a":null},"positions":{"send":null}}`)
+	patch(`{"notes":{"c":"three"}}`)
+	want = `{"notes":{"b":"two","c":"three"},"positions":{"recv":{"nodes":{}}},"seenSha":"abc1234"}`
+	if user() != want {
+		t.Fatalf("user.json after delete: got %q, want %q", user(), want)
 	}
 	if entries, _ := os.ReadDir(filepath.Join(data, "p/s")); len(entries) != 2 {
 		t.Fatalf("temp file left behind: %v", entries)
 	}
 
-	for _, bad := range []string{`not json`, `[1]`, `null`, ``} {
-		if rec := do(h, "PUT", url, bad); rec.Code != 400 {
-			t.Errorf("PUT %q: got %d, want 400", bad, rec.Code)
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			do(h, "PATCH", url, fmt.Sprintf(`{"notes":{"n%d":"x"}}`, i))
+		}()
+	}
+	wg.Wait()
+	for i := range 20 {
+		if !strings.Contains(user(), fmt.Sprintf(`"n%d":"x"`, i)) {
+			t.Fatalf("concurrent patch %d lost: %s", i, user())
 		}
 	}
-	if rec := do(h, "PUT", "/api/user?project=p&scope=new", `{}`); rec.Code != 404 {
-		t.Errorf("PUT to a scope that does not exist: got %d, want 404", rec.Code)
+
+	for _, bad := range []string{`not json`, `[1]`, `null`, ``, `{"notes":["x"]}`, `{"positions":null}`} {
+		if rec := do(h, "PATCH", url, bad); rec.Code != 400 {
+			t.Errorf("PATCH %q: got %d, want 400", bad, rec.Code)
+		}
+	}
+	if rec := do(h, "PUT", url, `{}`); rec.Code != 404 {
+		t.Errorf("PUT: got %d, want 404", rec.Code)
+	}
+	writeFile(t, filepath.Join(data, "p/s/user.json"), `{corrupt`)
+	patch(`{"seenSha":"abc1234"}`)
+	if user() != `{"seenSha":"abc1234"}` {
+		t.Errorf("patch over a corrupt file: got %q", user())
+	}
+	if rec := do(h, "PATCH", "/api/user?project=p&scope=new", `{}`); rec.Code != 404 {
+		t.Errorf("PATCH to a scope that does not exist: got %d, want 404", rec.Code)
 	}
 	if _, err := os.Stat(filepath.Join(data, "p/new")); err == nil {
-		t.Error("PUT created the scope directory")
+		t.Error("PATCH created the scope directory")
 	}
 }
 
@@ -186,8 +224,8 @@ func TestSystem(t *testing.T) {
 			t.Errorf("%s: got %d %q, want %d %q", tt.target, rec.Code, rec.Body.String(), tt.status, tt.body)
 		}
 	}
-	if rec := do(h, "PUT", "/api/user?project=p", `{"positions":{}}`); rec.Code != 204 {
-		t.Fatalf("PUT project user.json: got %d", rec.Code)
+	if rec := do(h, "PATCH", "/api/user?project=p", `{"positions":{}}`); rec.Code != 204 {
+		t.Fatalf("PATCH project user.json: got %d", rec.Code)
 	}
 	if got, _ := os.ReadFile(filepath.Join(data, "p/user.json")); string(got) != `{"positions":{}}` {
 		t.Errorf("project user.json = %q", got)

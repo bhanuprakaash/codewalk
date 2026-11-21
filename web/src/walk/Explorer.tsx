@@ -12,6 +12,7 @@ import { OrphansCard, orphans, type Notes } from './notes';
 import { Overview } from './Overview';
 import { Panel } from './Panel';
 import { StateColumn, StepCard } from './Step';
+import { patchUser } from './user';
 import type { Pt, User, Walk, Workflow } from './types';
 
 const startOf = (wf: Workflow, user: User): Record<string, Pt> => {
@@ -108,34 +109,31 @@ export function Explorer({
     return () => removeEventListener('keydown', onKey);
   }, [s, ov]);
 
-  const save = (doc: User) => {
+  const save = (doc: User, patch: object) => {
     userDoc.current = doc;
-    fetch(`/api/user?${query}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(userDoc.current),
-    }).then(
-      (r) => setSaveFailed(!r.ok),
-      () => setSaveFailed(true),
-    );
+    return patchUser(query, patch).then((ok) => {
+      setSaveFailed(!ok);
+      return ok;
+    });
   };
   const moved = (nodes: Record<string, Pt> | null) => {
     const positions = { ...userDoc.current.positions };
-    if (nodes) positions[wf!.id] = { layout: layoutOf(wf!), nodes };
+    const entry = nodes ? { layout: layoutOf(wf!), nodes } : null;
+    if (entry) positions[wf!.id] = entry;
     else delete positions[wf!.id];
-    save({ ...userDoc.current, positions });
+    save({ ...userDoc.current, positions }, { positions: { [wf!.id]: entry } });
   };
   const setNote = (key: string, text: string | null) => {
     const next = { ...notes };
     if (text) next[key] = text;
     else delete next[key];
     setNotes(next);
-    save({ ...userDoc.current, notes: next });
+    save({ ...userDoc.current, notes: next }, { notes: { [key]: text || null } });
   };
-  const seen = (head: string) => {
-    save({ ...userDoc.current, seenSha: head });
-    changed.clear();
-  };
+  const seen = (head: string) =>
+    save({ ...userDoc.current, seenSha: head }, { seenSha: head }).then(
+      (ok) => ok && changed.clear(),
+    );
 
   const onScreen = () => {
     const l = [`View: ${wf ? `workflow "${wf.title}"` : 'overview'}.`];
