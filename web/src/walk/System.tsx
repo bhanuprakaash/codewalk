@@ -130,7 +130,7 @@ function SystemView({
   const selected = s.open && cur ? cur : null;
 
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
-  const lost = orphans(walk, notes, true);
+  const lost = orphans(walk, notes, view);
   const open = (k: 'node' | 'type' | 'method' | 'func' | 'orphans' | 'patterns', id: string) =>
     dispatch({ t: 'open', entry: { k, id } });
   const go: Goto = {
@@ -184,14 +184,15 @@ function SystemView({
     setNotes(next);
     save({ ...userDoc.current, notes: next }, { notes: { [key]: text || null } });
   };
+  const seenKey = view === 'system' ? 'seenSha' : `seenSha:${view}`;
   const seen = (head: string) =>
-    save({ ...userDoc.current, seenSha: head }, { seenSha: head }).then(
+    save({ ...userDoc.current, [seenKey]: head }, { [seenKey]: head }).then(
       (ok) => ok && changed.clear(),
     );
 
   let body;
   if (!cur) body = <p className="empty">Click a box, an edge or a type.</p>;
-  else if (cur.k === 'node') body = <BoxCard id={cur.id} sys={sys} onOpen={onOpen} />;
+  else if (cur.k === 'node') body = <BoxCard id={cur.id} sys={sys} view={view} onOpen={onOpen} />;
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
   else if (cur.k === 'func') body = <FuncCard symbol={cur.id} />;
@@ -260,10 +261,12 @@ function SystemView({
 function BoxCard({
   id,
   sys,
+  view,
   onOpen,
 }: {
   id: string;
   sys: SystemData;
+  view: string;
   onOpen(drill: string): void;
 }) {
   const { walk, go, changes } = useWalk();
@@ -300,7 +303,7 @@ function BoxCard({
       </div>
       {b.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{b.what}</p>}
       {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
-      <NoteSec k={boxKey(id)} />
+      <NoteSec k={boxKey(view, id)} />
       {b.drill && (
         <p style={{ marginTop: 10 }}>
           <a onClick={() => onOpen(b.drill!)}>Open {b.drill} →</a>

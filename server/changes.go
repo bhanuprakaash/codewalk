@@ -36,7 +36,7 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			Nodes  map[string]struct{ Symbol string }
 			Boxes  map[string]struct{ Pkg string }
 		}
-		name := "walk.json"
+		name, seenKey := "walk.json", "seenSha"
 		if r.URL.Query().Get("scope") == "" {
 			name = "system.built.json"
 			if id := r.URL.Query().Get("id"); id != "" {
@@ -44,7 +44,7 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 					writeError(w, http.StatusBadRequest, "id must be a plain name.")
 					return
 				}
-				name = "system-" + id + ".built.json"
+				name, seenKey = "system-"+id+".built.json", "seenSha:system:"+id
 			}
 		}
 		var raw []byte
@@ -59,11 +59,12 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			writeError(w, fileStatus(err), "Nothing built here yet.")
 			return
 		}
-		var user struct{ SeenSha string }
+		var user map[string]json.RawMessage
+		var base string
 		if raw, err := os.ReadFile(filepath.Join(dir, "user.json")); err == nil {
 			json.Unmarshal(raw, &user)
+			json.Unmarshal(user[seenKey], &base)
 		}
-		base := user.SeenSha
 		if !isSha(base) {
 			base = built.Commit
 		}

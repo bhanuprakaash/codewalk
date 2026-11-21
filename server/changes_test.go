@@ -77,4 +77,21 @@ func TestChanges(t *testing.T) {
 	if got := states("/api/changes?project=pr&scope=s"); len(got) != 0 {
 		t.Errorf("after mark seen: %v", got)
 	}
+
+	writeFile(t, filepath.Join(data, "pr/system-kid.built.json"), `{"repo":"`+repo+`","commit":"`+a+`","boxes":{"p":{"pkg":"p"}}}`)
+	for _, c := range []struct {
+		patch, target string
+		want          map[string]string
+	}{
+		{`{"seenSha":"` + b + `"}`, "/api/changes?project=pr", map[string]string{}},
+		{`{"seenSha":"` + b + `"}`, "/api/changes?project=pr&id=kid", map[string]string{"p": "changed"}},
+		{`{"seenSha:system:kid":"` + b + `"}`, "/api/changes?project=pr&id=kid", map[string]string{}},
+	} {
+		if rec := do(h, "PATCH", "/api/user?project=pr", c.patch); rec.Code != 204 {
+			t.Fatalf("PATCH %s: %d", c.patch, rec.Code)
+		}
+		if got := states(c.target); !maps.Equal(got, c.want) {
+			t.Errorf("%s after %s: %v, want %v", c.target, c.patch, got, c.want)
+		}
+	}
 }

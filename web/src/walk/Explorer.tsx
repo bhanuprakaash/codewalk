@@ -44,7 +44,7 @@ export function Explorer({
   const asked = useAsk(query);
   const changed = useChanges(query);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
-  const lost = orphans(walk, notes, false);
+  const lost = orphans(walk, notes);
 
   const wf = workflowOf(walk, s.view);
   const ov = !wf;
