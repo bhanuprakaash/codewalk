@@ -5,7 +5,7 @@ import { Canvas, type CanvasHandle } from './Canvas';
 import { SeenButton, useChanges } from './changes';
 import { EdgeCard, FuncCard, MethodCard, NodeCard, TypeCard } from './cards';
 import { WalkCtx, type Goto } from './ctx';
-import { AskButton, TopBar, Tabs } from './Header';
+import { AskButton, PatternsButton, TopBar } from './Header';
 import { layoutOf, neighbourhood } from './graph';
 import { valueText } from './Json';
 import { OVERVIEW, initNav, reducer, traceOf, workflowOf, type Entry } from './nav';
@@ -44,7 +44,7 @@ export function Explorer({
   const canvas = useRef<CanvasHandle>(null);
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { route } = useNav();
+  const { route, go: navigate } = useNav();
   const asked = useAsk(query);
   const changed = useChanges(query);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
@@ -197,33 +197,13 @@ export function Explorer({
     <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
         <TopBar
-          viewLabel={wf ? wf.title : 'Overview'}
-          views={[
-            { label: 'System', to: { project: route.project } },
-            { label: 'Overview', to: { ...route, view: OVERVIEW }, on: ov },
-            ...walk.workflows.map((w) => ({
-              label: w.title,
-              to: { ...route, view: w.id },
-              on: s.view === w.id,
-            })),
-          ]}
-        >
-          <span className="meta">
-            {walk.commit.slice(0, 7)}
-            {walk.dirty ? ' · dirty' : ''}
-            {saveFailed ? ' · could not save' : ''}
-            {changed.error ? ` · ${changed.error}` : ''}
-          </span>
-          {lost.length > 0 && (
-            <button className="plain" onClick={() => open({ k: 'orphans', id: '' })}>
-              Orphaned notes · {lost.length}
-            </button>
-          )}
-          <SeenButton res={changed.res} onSeen={seen} />
-          <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />
-        </TopBar>
-        <Tabs
           tabs={[
+            {
+              label: 'System',
+              tone: 'sys',
+              on: false,
+              open: () => navigate({ project: route.project }),
+            },
             { label: 'Overview', tone: 'ov', on: ov, open: () => show(OVERVIEW) },
             ...walk.workflows.map((w) => ({
               label: w.title,
@@ -234,15 +214,25 @@ export function Explorer({
               open: () => show(w.id),
             })),
           ]}
-          patterns={walk.patterns?.length ?? 0}
-          onPatterns={() => open({ k: 'patterns', id: '' })}
-        />
-        {wf && (
-          <Legend
-            kinds={wf.nodes.map((id) => walk.nodes[id].kind)}
-            edges={wf.edges.map((e) => e.kind)}
+        >
+          <span className="meta">
+            <span className="sha">{walk.commit.slice(0, 7)}</span>
+            {walk.dirty ? ' · dirty' : ''}
+            {saveFailed ? ' · could not save' : ''}
+            {changed.error ? ` · ${changed.error}` : ''}
+          </span>
+          {lost.length > 0 && (
+            <button className="plain" onClick={() => open({ k: 'orphans', id: '' })}>
+              Orphaned notes · {lost.length}
+            </button>
+          )}
+          <SeenButton res={changed.res} onSeen={seen} />
+          <PatternsButton
+            n={walk.patterns?.length ?? 0}
+            onOpen={() => open({ k: 'patterns', id: '' })}
           />
-        )}
+          <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />
+        </TopBar>
         <div id="body">
           <aside id="state">{tracing && <StateColumn trace={trace} tr={s.tr} />}</aside>
           <div id="canvasWrap">
@@ -263,6 +253,10 @@ export function Explorer({
                   onEdge={go.edge}
                   onMoved={moved}
                   marks={changed.res?.changes}
+                />
+                <Legend
+                  kinds={wf.nodes.map((id) => walk.nodes[id].kind)}
+                  edges={wf.edges.map((e) => e.kind)}
                 />
                 {!tracing && <Summary key={wf.id} wf={wf} />}
                 <Tracebar

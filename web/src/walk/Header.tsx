@@ -96,13 +96,11 @@ function Picker({ label, groups }: { label: ReactNode; groups: Group[] }) {
 
 export function TopBar({
   name,
-  viewLabel,
-  views,
+  tabs,
   children,
 }: {
   name?: string;
-  viewLabel?: string;
-  views?: Item[];
+  tabs?: Tab[];
   children?: ReactNode;
 }) {
   const { projects, route, go } = useNav();
@@ -117,17 +115,17 @@ export function TopBar({
         onClick={toggleTheme}
       >
         <span className="moon">
-          <Svg d={MOON} size={20} sw={1.8} />
+          <Svg d={MOON} size={18} sw={1.8} />
         </span>
         <span className="sun">
-          <Svg d={SUN} size={20} sw={1.8} />
+          <Svg d={SUN} size={18} sw={1.8} />
         </span>
       </button>
       <div className="mark">
         <span aria-hidden="true">
           <svg
-            width="18"
-            height="18"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -144,7 +142,7 @@ export function TopBar({
       </div>
       <span className="vsep" aria-hidden="true" />
       <button className="round" aria-label="Back" disabled={!up} onClick={() => up && go(up)}>
-        <Svg d="M19 12H5M11 6l-6 6 6 6" size={18} />
+        <Svg d="M19 12H5M11 6l-6 6 6 6" size={16} />
       </button>
       <Picker
         label={
@@ -178,16 +176,7 @@ export function TopBar({
           ],
         }))}
       />
-      {views && (
-        <Picker
-          label={
-            <>
-              View <b>{viewLabel}</b>
-            </>
-          }
-          groups={[{ items: views }]}
-        />
-      )}
+      {tabs && <Tabs tabs={tabs} />}
       <span className="grow" />
       {children}
     </header>
@@ -196,39 +185,39 @@ export function TopBar({
 
 export type Tab = { label: string; on: boolean; tone: 'sys' | 'ov' | 'go' | 'you'; open(): void };
 
-export function Tabs({
-  tabs,
-  patterns,
-  onPatterns,
-}: {
-  tabs: Tab[];
-  patterns: number;
-  onPatterns(): void;
-}) {
+function Tabs({ tabs }: { tabs: Tab[] }) {
+  const nav = useRef<HTMLElement>(null);
+  const active = tabs.find((t) => t.on)?.label;
+  useEffect(() => {
+    nav.current?.querySelector('.on')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }, [active]);
   return (
-    <nav className="tabs" aria-label="Views in this project">
+    <nav className="tabs" aria-label="Views in this project" ref={nav}>
       {tabs.map((t) => (
         <button key={t.label} className={`tab ${t.tone}${t.on ? ' on' : ''}`} onClick={t.open}>
           <span className="ti" aria-hidden="true">
             {t.tone === 'go' ? (
-              <Svg d={ARROW} size={18} sw={1.8} />
+              <Svg d={ARROW} size={14} sw={2} />
             ) : t.tone === 'you' ? (
-              <Svg d={HAND} size={18} sw={1.8} />
+              <Svg d={HAND} size={14} sw={2} />
             ) : (
-              <Svg d={GRID} size={18} sw={1.8} />
+              <Svg d={GRID} size={14} sw={2} />
             )}
           </span>
           {t.label}
         </button>
       ))}
-      <span className="grow" />
-      {patterns > 0 && (
-        <button className="plain" onClick={onPatterns}>
-          <Svg d="M4 6h16M4 12h10M4 18h6" sw={1.8} />
-          Go patterns · {patterns}
-        </button>
-      )}
     </nav>
+  );
+}
+
+export function PatternsButton({ n, onOpen }: { n: number; onOpen(): void }) {
+  if (!n) return null;
+  return (
+    <button className="plain" onClick={onOpen}>
+      <Svg d="M4 6h16M4 12h10M4 18h6" sw={1.8} />
+      Go patterns · {n}
+    </button>
   );
 }
 

@@ -164,17 +164,19 @@ code,
 header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  min-height: 64px;
-  padding: 10px 20px;
+  gap: 10px;
+  flex: none;
+  height: 52px;
+  padding: 0 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   min-width: 0;
 }
-header .grow,
-nav.tabs .grow {
-  flex: 1 1 24px;
+header > * {
+  flex: none;
+}
+header .grow {
+  flex: 1 1 8px;
 }
 header .meta {
   color: var(--faint);
@@ -183,14 +185,14 @@ header .meta {
   white-space: nowrap;
 }
 .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   display: grid;
   place-items: center;
   border: 0;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--muted);
 }
 .icon-btn:hover {
@@ -206,11 +208,11 @@ header .meta {
 .mark {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .mark span {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--text);
   color: var(--panel);
@@ -218,19 +220,18 @@ header .meta {
   place-items: center;
 }
 .mark b {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 .vsep {
   width: 1px;
-  height: 28px;
+  height: 24px;
   background: var(--line);
-  margin: 0 4px;
 }
 button.round {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -245,13 +246,13 @@ button.round:disabled {
   position: relative;
 }
 button.pill {
-  height: 40px;
+  height: 34px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px 0 16px;
+  padding: 0 12px 0 14px;
   border-radius: 999px;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -297,11 +298,11 @@ button.pill b {
   color: var(--panel);
 }
 .dark-btn {
-  height: 40px;
+  height: 34px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   background: var(--text);
@@ -312,11 +313,12 @@ button.pill b {
   opacity: 0.88;
 }
 .chg-chip {
-  height: 40px;
+  height: 34px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 16px;
+  padding: 0 14px;
+  white-space: nowrap;
   border-radius: 999px;
   border: 1px solid var(--changed-line);
   background: var(--changed-bg);
@@ -335,7 +337,8 @@ button.pill b {
   flex: none;
 }
 button.plain {
-  height: 36px;
+  height: 34px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -343,38 +346,45 @@ button.plain {
   border-radius: 10px;
   font-size: 14px;
 }
-nav.tabs button.plain svg {
+button.plain svg {
   color: var(--k-func);
 }
 nav.tabs {
   display: flex;
   align-items: center;
-  gap: 28px;
-  flex-wrap: wrap;
-  min-height: 76px;
-  padding: 14px 32px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 96px;
+  padding: 4px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 button.tab {
-  height: auto;
+  height: 34px;
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0;
+  gap: 8px;
+  padding: 0 12px 0 5px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
   color: var(--muted);
 }
+button.tab:hover {
+  background: var(--panel2);
+}
 button.tab.on {
+  background: var(--panel2);
   color: var(--text);
   font-weight: 600;
 }
 .tab .ti {
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: inline-grid;
   place-items: center;
@@ -403,14 +413,34 @@ button.tab.on {
   color: #fff;
 }
 #legend {
+  position: absolute;
+  left: 16px;
+  bottom: 40px;
+  z-index: 3;
+}
+#legend > button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--muted);
+  box-shadow: var(--shadow);
+}
+#legend .pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  gap: 8px 18px;
   align-items: center;
-  min-height: 52px;
-  padding: 12px 32px;
+  width: max-content;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 14px 16px;
   background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
   font-size: 14px;
   color: var(--muted);
 }
@@ -430,9 +460,16 @@ button.tab.on {
   overflow: visible;
 }
 #legend .bar {
-  width: 1px;
-  height: 20px;
+  flex-basis: 100%;
+  height: 1px;
   background: var(--line);
+}
+@media (max-width: 900px) {
+  header .sha,
+  .mark b,
+  .chg-chip .more {
+    display: none;
+  }
 }
 #body {
   flex: 1;

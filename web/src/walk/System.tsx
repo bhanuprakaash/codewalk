@@ -5,7 +5,7 @@ import { FuncCard, MethodCard, TypeCard } from './cards';
 import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
 import { Legend } from './Bars';
-import { Notice, Tabs, TopBar, type Tab } from './Header';
+import { Notice, PatternsButton, TopBar, type Tab } from './Header';
 import { BoxIcon } from './icons';
 import { initNav, reducer } from './nav';
 import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
@@ -243,19 +243,9 @@ function SystemView({
       value={{ walk, wf: null, wi: null, go, changes: changed.res, notes, setNote }}
     >
       <div className="walk system">
-        <TopBar
-          name={sys.title}
-          viewLabel={view === 'system' ? 'System' : view.slice('system:'.length)}
-          views={[
-            { label: 'System', to: { project: nav.route.project }, on: view === 'system' },
-            ...(scopes ?? []).map((scope) => ({
-              label: scope,
-              to: { project: nav.route.project, scope },
-            })),
-          ]}
-        >
+        <TopBar name={sys.title} tabs={tabs}>
           <span className="meta">
-            {sys.commit.slice(0, 7)}
+            <span className="sha">{sys.commit.slice(0, 7)}</span>
             {saveFailed ? ' · could not save' : ''}
             {changed.error ? ` · ${changed.error}` : ''}
           </span>
@@ -265,17 +255,8 @@ function SystemView({
             </button>
           )}
           <SeenButton res={changed.res} onSeen={seen} />
+          <PatternsButton n={sys.patterns?.length ?? 0} onOpen={() => open('patterns', '')} />
         </TopBar>
-        <Tabs
-          tabs={tabs}
-          patterns={sys.patterns?.length ?? 0}
-          onPatterns={() => open('patterns', '')}
-        />
-        <Legend
-          system
-          kinds={Object.values(sys.boxes).map((b) => b.kind)}
-          edges={sys.edges.map((e) => e.kind)}
-        />
         <div id="body">
           <aside id="state" />
           <div id="canvasWrap">
@@ -292,6 +273,11 @@ function SystemView({
               onType={go.type}
               onMoved={moved}
               marks={changed.res?.changes}
+            />
+            <Legend
+              system
+              kinds={Object.values(sys.boxes).map((b) => b.kind)}
+              edges={sys.edges.map((e) => e.kind)}
             />
           </div>
           <Panel
