@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KIND, kc } from './graph';
+import { KIND, SYSTEM_KINDS, kc } from './graph';
 import type { EdgeKind, Step, Walk, WhatIf, Workflow } from './types';
 
 const EDGES: [EdgeKind, string, string][] = [
@@ -15,14 +15,16 @@ const edgeColour = (k: EdgeKind) =>
 export function Legend() {
   return (
     <div id="legend">
-      {Object.entries(KIND).map(([k, v]) => (
-        <span className="it" key={k}>
-          <span className="gl" style={{ background: kc(k) }}>
-            {v.g}
+      {Object.entries(KIND)
+        .filter(([k]) => !SYSTEM_KINDS.includes(k))
+        .map(([k, v]) => (
+          <span className="it" key={k}>
+            <span className="gl" style={{ background: kc(k) }}>
+              {v.g}
+            </span>
+            {v.name}
           </span>
-          {v.name}
-        </span>
-      ))}
+        ))}
       <span className="bar" />
       {EDGES.map(([k, name, dash]) => (
         <span className="it" key={k}>

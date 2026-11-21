@@ -26,6 +26,7 @@ export const KIND: Record<Kind, { g: string; name: string }> = {
   service: { g: '⚙', name: 'Service' },
   package: { g: '▣', name: 'Package' },
 };
+export const SYSTEM_KINDS = ['ui', 'service', 'package'];
 export const kc = (k: string) => `var(--k-${k})`;
 export const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
