@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChangeSec } from './changes';
 import { Code } from './Code';
 import { useWalk } from './ctx';
 import { KIND, kc } from './graph';
@@ -8,7 +9,7 @@ import type { Edge, EdgeKind, Method, WalkType } from './types';
 const isPublic = (name: string) => /^[A-Z]/.test(name);
 
 export function NodeCard({ id }: { id: string }) {
-  const { walk, wf, go } = useWalk();
+  const { walk, wf, go, changes } = useWalk();
   const [line, setLine] = useState<number | null>(null);
   const n = walk.nodes[id];
   const recv = n.recv ? walk.types[n.recv] : null;
@@ -71,6 +72,7 @@ export function NodeCard({ id }: { id: string }) {
         {n.pkg ? ` · ${n.pkg}/` : ''}
       </div>
       {n.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{n.what}</p>}
+      {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
       {n.why && (
         <Sec h="Why it exists">
           <WhyBox why={n.why} />

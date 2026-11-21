@@ -38,6 +38,7 @@ interface Props {
   onEdge(id: string): void;
   onMoved(nodes: Record<string, Pt> | null): void;
   onType?(symbol: string): void;
+  marks?: Record<string, { state: string }>;
   ref: Ref<CanvasHandle>;
 }
 
@@ -89,6 +90,7 @@ export function Canvas({
   onEdge,
   onMoved,
   onType,
+  marks,
   ref,
 }: Props) {
   const [P, setP] = useState(start);
@@ -407,6 +409,16 @@ export function Canvas({
                     >
                       go
                     </text>
+                  )}
+                  {marks?.[id] && (
+                    <circle
+                      className={`mark ${marks[id].state}`}
+                      cx={-NW / 2 + 4}
+                      cy={-NH / 2 + 4}
+                      r={5}
+                    >
+                      <title>{marks[id].state} since you last looked</title>
+                    </circle>
                   )}
                   {n.drill && (
                     <text

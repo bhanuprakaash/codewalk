@@ -66,6 +66,12 @@ file only when there are no errors. The app serves the built file as written
 - every listed type exists in its package;
 - every drill target exists.
 
+## Changes
+
+A package box gets a dot when any file in its package differs between the project's
+`user.json` `seenSha` (default: the commit the view was built from) and the repo's HEAD; its card
+lists the files. "Mark seen" stores HEAD as `seenSha`.
+
 ## Positions
 
 Dragged boxes are saved in the project's `user.json` under `positions.system` (or

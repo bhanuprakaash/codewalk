@@ -1044,6 +1044,38 @@ svg#stage.panning {
   border-radius: 8px;
   flex: none;
 }
+.mark.changed {
+  fill: var(--focus);
+}
+.mark.removed {
+  fill: var(--panel);
+  stroke: var(--exit);
+  stroke-width: 2;
+}
+pre.diff {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--panel2);
+  border-radius: 6px;
+  padding: 8px 0;
+  margin: 0;
+  overflow-x: auto;
+}
+pre.diff div {
+  padding: 0 10px;
+  white-space: pre;
+}
+pre.diff .add {
+  background: var(--ok-soft);
+}
+pre.diff .del {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+pre.diff .hunk {
+  color: var(--faint);
+}
 .tchip rect {
   fill: var(--panel);
   stroke: color-mix(in srgb, var(--k-type) 45%, var(--line2));

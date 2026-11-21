@@ -30,6 +30,7 @@ func Handler(dataDir string) http.Handler {
 		json.NewEncoder(w).Encode(projects)
 	})
 	walkRoutes(mux, dataDir)
+	changeRoutes(mux, dataDir)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", spa(web.FS()))
 	return mux
