@@ -59,11 +59,11 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			json.Unmarshal(raw, &user)
 		}
 		base := user.SeenSha
-		if base == "" {
+		if !isSha(base) {
 			base = built.Commit
 		}
 		out, err := exec.Command("git", "-C", built.Repo, "rev-parse", "HEAD").Output()
-		if err != nil || base == "unknown" {
+		if err != nil || !isSha(base) {
 			writeError(w, http.StatusConflict, "Cannot compare with the repo: it is gone or not a git repo.")
 			return
 		}
@@ -118,3 +118,16 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 }
 
 func short(sha string) string { return sha[:min(7, len(sha))] }
+
+// isSha keeps user.json from passing options to git: base becomes a git argument.
+func isSha(s string) bool {
+	if len(s) < 7 || len(s) > 40 {
+		return false
+	}
+	for _, c := range s {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			return false
+		}
+	}
+	return true
+}
