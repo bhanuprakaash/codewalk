@@ -6,6 +6,7 @@ import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
 import { BoxIcon } from './icons';
 import { initNav, reducer } from './nav';
+import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
 import { Panel } from './Panel';
 import { Chip, Sec } from './parts';
 import type { Pt, System as SystemData, User, Walk } from './types';
@@ -124,7 +125,9 @@ function SystemView({
   const cur = s.hist[s.hi];
   const selected = s.open && cur ? cur : null;
 
-  const open = (k: 'node' | 'type' | 'method', id: string) =>
+  const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
+  const lost = orphans(walk, notes, true);
+  const open = (k: 'node' | 'type' | 'method' | 'orphans', id: string) =>
     dispatch({ t: 'open', entry: { k, id } });
   const go: Goto = {
     node: (id) => {
@@ -172,6 +175,13 @@ function SystemView({
     else delete positions[view];
     save({ ...userDoc.current, positions });
   };
+  const setNote = (key: string, text: string | null) => {
+    const next = { ...notes };
+    if (text) next[key] = text;
+    else delete next[key];
+    setNotes(next);
+    save({ ...userDoc.current, notes: next });
+  };
   const seen = (head: string) => {
     save({ ...userDoc.current, seenSha: head });
     changed.clear();
@@ -183,9 +193,12 @@ function SystemView({
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
   else if (cur.k === 'edge') body = <EdgeCard id={cur.id} sys={sys} />;
+  else if (cur.k === 'orphans') body = <OrphansCard list={lost} />;
 
   return (
-    <WalkCtx.Provider value={{ walk, wf: null, wi: null, go, changes: changed.res }}>
+    <WalkCtx.Provider
+      value={{ walk, wf: null, wi: null, go, changes: changed.res, notes, setNote }}
+    >
       <div className="walk system">
         <header>
           <div className="brand">{sys.title}</div>
@@ -195,6 +208,9 @@ function SystemView({
               {sys.commit.slice(0, 7)}
               {saveFailed ? ' · could not save' : ''}
             </span>
+            {lost.length > 0 && (
+              <button onClick={() => open('orphans', '')}>Orphaned notes · {lost.length}</button>
+            )}
             <SeenButton res={changed.res} onSeen={seen} />
           </div>
         </header>
@@ -279,6 +295,7 @@ function BoxCard({
       </div>
       {b.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{b.what}</p>}
       {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
+      <NoteSec k={boxKey(id)} />
       {b.drill && (
         <p style={{ marginTop: 10 }}>
           <a onClick={() => onOpen(b.drill!)}>Open {b.drill} →</a>
