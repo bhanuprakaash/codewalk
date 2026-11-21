@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -46,7 +47,11 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 				name = "system-" + id + ".built.json"
 			}
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, name))
+		var raw []byte
+		stat, err := os.Stat(filepath.Join(dir, name))
+		if err == nil {
+			raw, err = os.ReadFile(filepath.Join(dir, name))
+		}
 		if err == nil {
 			err = json.Unmarshal(raw, &built)
 		}
@@ -69,7 +74,7 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 		}
 		head := strings.TrimSpace(string(out))
 		res := changes{Base: base, Head: head, Changes: map[string]walk.Change{}}
-		key := built.Repo + "|" + base + "|" + head + "|" + dir + "|" + name
+		key := built.Repo + "|" + base + "|" + head + "|" + dir + "|" + name + "|" + stat.ModTime().String() + "|" + strconv.FormatInt(stat.Size(), 10)
 		mu.Lock()
 		cached, hit := cache[key]
 		mu.Unlock()
@@ -110,6 +115,9 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			}
 		}
 		mu.Lock()
+		if len(cache) >= 64 {
+			clear(cache)
+		}
 		cache[key] = res
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")

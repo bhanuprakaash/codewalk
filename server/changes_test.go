@@ -59,10 +59,15 @@ func TestChanges(t *testing.T) {
 		}
 	}
 
+	writeFile(t, filepath.Join(data, "pr/s/walk.json"), `{"repo":"`+repo+`","commit":"`+a+`","nodes":{"k":{"symbol":"p:Kept"},"e":{"symbol":"p:Edited"},"e2":{"symbol":"p:Edited"},"g":{"symbol":"p:Gone"},"start":{}}}`)
+	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "e2": "changed", "g": "removed"}) {
+		t.Errorf("walk rebuilt at the same HEAD: %v", got)
+	}
+
 	if rec := do(h, "PATCH", "/api/user?project=pr&scope=s", `{"seenSha":"--output=x"}`); rec.Code != 204 {
 		t.Fatalf("bad seenSha: %d", rec.Code)
 	}
-	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "g": "removed"}) {
+	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "e2": "changed", "g": "removed"}) {
 		t.Errorf("bad seenSha falls back to the built commit: %v", got)
 	}
 
