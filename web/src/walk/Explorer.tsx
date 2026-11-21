@@ -8,6 +8,7 @@ import { WalkCtx, type Goto } from './ctx';
 import { layoutOf, neighbourhood } from './graph';
 import { valueText } from './Json';
 import { OVERVIEW, initNav, reducer, traceOf, workflowOf, type Entry } from './nav';
+import { OrphansCard, orphans, type Notes } from './notes';
 import { Overview } from './Overview';
 import { Panel } from './Panel';
 import { StateColumn, StepCard } from './Step';
@@ -41,6 +42,8 @@ export function Explorer({
   const [saveFailed, setSaveFailed] = useState(false);
   const asked = useAsk(query);
   const changed = useChanges(query);
+  const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
+  const lost = orphans(walk, notes, false);
 
   const wf = workflowOf(walk, s.view);
   const ov = !wf;
@@ -121,6 +124,13 @@ export function Explorer({
     else delete positions[wf!.id];
     save({ ...userDoc.current, positions });
   };
+  const setNote = (key: string, text: string | null) => {
+    const next = { ...notes };
+    if (text) next[key] = text;
+    else delete next[key];
+    setNotes(next);
+    save({ ...userDoc.current, notes: next });
+  };
   const seen = (head: string) => {
     save({ ...userDoc.current, seenSha: head });
     changed.clear();
@@ -167,10 +177,11 @@ export function Explorer({
   else if (cur.k === 'node') body = <NodeCard id={cur.id} />;
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
+  else if (cur.k === 'orphans') body = <OrphansCard list={lost} />;
   else body = <EdgeCard id={cur.id} />;
 
   return (
-    <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res }}>
+    <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
         <header>
           <div className="brand">{walk.title}</div>
@@ -192,6 +203,11 @@ export function Explorer({
               {walk.dirty ? ' · dirty' : ''}
               {saveFailed ? ' · could not save' : ''}
             </span>
+            {lost.length > 0 && (
+              <button onClick={() => open({ k: 'orphans', id: '' })}>
+                Orphaned notes · {lost.length}
+              </button>
+            )}
             <SeenButton res={changed.res} onSeen={seen} />
             <button
               title="Ask Claude about what you are looking at (/)"

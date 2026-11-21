@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChangeSec } from './changes';
 import { Code } from './Code';
+import { NoteSec, nodeKey } from './notes';
 import { useWalk } from './ctx';
 import { KIND, kc } from './graph';
 import { Chip, LinkTypes, Rows, Sec, TypeLink, WhyBox } from './parts';
@@ -73,6 +74,7 @@ export function NodeCard({ id }: { id: string }) {
       </div>
       {n.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{n.what}</p>}
       {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
+      <NoteSec k={nodeKey(id, n.symbol)} />
       {n.why && (
         <Sec h="Why it exists">
           <WhyBox why={n.why} />
@@ -194,6 +196,7 @@ export function TypeCard({ symbol }: { symbol: string }) {
         {t.path}:{t.line} · {t.kind}
       </div>
       {t.role && <p style={{ lineHeight: 1.6, margin: 0 }}>{t.role}</p>}
+      <NoteSec k={t.symbol} />
       {t.doc && t.doc !== t.role && (
         <Sec h="Doc comment">
           <p style={{ color: 'var(--muted)' }}>{t.doc}</p>
@@ -269,6 +272,7 @@ export function MethodCard({ id }: { id: string }) {
       ) : (
         <p className="empty">No doc comment.</p>
       )}
+      <NoteSec k={m.symbol} />
       <Sec h="In → out">
         <div className="sig">
           <span style={{ color: 'var(--muted)' }}>

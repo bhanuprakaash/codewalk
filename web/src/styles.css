@@ -794,6 +794,45 @@ svg#stage.panning {
   font-size: 12px;
   margin-top: -2px;
 }
+.note-key {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.note-add {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+.pinned {
+  background: var(--panel2);
+  border-left: 3px solid var(--focus);
+  border-radius: 6px;
+  padding: 8px 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.note-input {
+  width: 100%;
+  min-height: 70px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.note-input:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+.note-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12.5px;
+}
 .mfilter {
   width: 100%;
   background: var(--panel2);
