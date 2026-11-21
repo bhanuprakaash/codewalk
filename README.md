@@ -16,6 +16,13 @@ codewalk install          # writes the launchd agent com.codewalk and starts it
 Open http://codewalk.localhost:47474. The agent restarts the server if it stops, and logs to
 `~/Library/Logs/codewalk.log`. `codewalk uninstall` removes it.
 
+## Use
+
+Pick a scope in the sidebar. The address follows it: `/<project>/<scope>` opens the overview and
+`/<project>/<scope>/<workflow>` a workflow. Dragged boxes are saved to `user.json` beside the walk.
+Ask (press `/`) runs the `claude` CLI read-only in the walk's repo, so `claude` must be on the PATH
+that `codewalk install` records.
+
 ## Run without launchd
 
 ```sh
