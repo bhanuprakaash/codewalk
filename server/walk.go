@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/bhanuprakaash/codewalk/walk"
 )
 
 type walkInfo struct {
@@ -103,7 +105,7 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 			return
 		}
 		out, _ := json.Marshal(doc)
-		if err := writeFileAtomic(path, out); err != nil {
+		if err := walk.WriteFileAtomic(path, out); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -213,22 +215,6 @@ func mergeUser(doc, patch map[string]json.RawMessage) error {
 		doc[k], _ = json.Marshal(merged)
 	}
 	return nil
-}
-
-func writeFileAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".user-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
 
 func fileStatus(err error) int {
