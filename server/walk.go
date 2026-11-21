@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -125,11 +126,21 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 		path := r.URL.Query().Get("path")
 		line, _ := strconv.Atoi(r.URL.Query().Get("line"))
 		line = max(line, 1)
-		if !filepath.IsLocal(path) {
+		full, rel, err := resolveInRepo(info.Repo, path)
+		if err != nil {
 			writeError(w, http.StatusNotFound, "No such file in the repo.")
 			return
 		}
-		raw, err := os.ReadFile(filepath.Join(info.Repo, path))
+		st, err := os.Stat(full)
+		if err != nil || !st.Mode().IsRegular() {
+			writeError(w, http.StatusNotFound, "No such file in the repo.")
+			return
+		}
+		if st.Size() > maxCodeSize {
+			writeError(w, http.StatusRequestEntityTooLarge, rel+" is too large to show.")
+			return
+		}
+		raw, err := os.ReadFile(full)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "No such file in the repo.")
 			return
@@ -144,6 +155,32 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 	})
 
 	mux.HandleFunc("POST /api/ask", func(w http.ResponseWriter, r *http.Request) { ask(w, r, dataDir) })
+}
+
+const maxCodeSize = 1 << 20
+
+// resolveInRepo follows symlinks and returns the file's real path and its path relative to the
+// real repo root. It fails for a path that leaves the repo or goes into .git.
+func resolveInRepo(repo, path string) (full, rel string, err error) {
+	root, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		return "", "", err
+	}
+	if !filepath.IsLocal(path) {
+		return "", "", errors.New("not local")
+	}
+	if full, err = filepath.EvalSymlinks(filepath.Join(root, path)); err != nil {
+		return "", "", err
+	}
+	if rel, err = filepath.Rel(root, full); err != nil || !filepath.IsLocal(rel) {
+		return "", "", errors.New("outside the repo")
+	}
+	for _, p := range []string{path, rel} {
+		if slices.ContainsFunc(strings.Split(filepath.ToSlash(p), "/"), func(e string) bool { return strings.EqualFold(e, ".git") }) {
+			return "", "", errors.New("inside .git")
+		}
+	}
+	return full, rel, nil
 }
 
 // scopeDir maps ?project=&scope= to <data>/<project>/<scope>. Both must be a single plain name,

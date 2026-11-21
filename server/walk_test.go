@@ -150,9 +150,25 @@ func TestCode(t *testing.T) {
 	if rec.Code != 200 || rec.Body.String() != want {
 		t.Errorf("got %d %q, want 200 %q", rec.Code, rec.Body.String(), want)
 	}
-	for _, path := range []string{"../outside.txt", "/etc/hosts", "a/missing.go"} {
-		if rec := do(h, "GET", "/api/code?project=p&scope=s&path="+path, ""); rec.Code != 404 {
-			t.Errorf("path %q: got %d, want 404", path, rec.Code)
+	writeFile(t, filepath.Join(repo, ".git/config"), "[core]")
+	writeFile(t, filepath.Join(repo, "big.txt"), strings.Repeat("x", 1<<20+1))
+	for link, target := range map[string]string{
+		"out.txt": filepath.Join(filepath.Dir(repo), "outside.txt"),
+		"gitc":    ".git/config",
+		"dir":     "a",
+		"in.go":   "a/b.go",
+	} {
+		if err := os.Symlink(target, filepath.Join(repo, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, status := range map[string]int{
+		"../outside.txt": 404, "/etc/hosts": 404, "a/missing.go": 404, "a": 404,
+		".git/config": 404, ".GIT/config": 404, "a/../.git/config": 404, "out.txt": 404, "gitc": 404,
+		"big.txt": 413, "in.go": 200, "dir/b.go": 200,
+	} {
+		if rec := do(h, "GET", "/api/code?project=p&scope=s&path="+path, ""); rec.Code != status {
+			t.Errorf("path %q: got %d %q, want %d", path, rec.Code, rec.Body.String(), status)
 		}
 	}
 }
