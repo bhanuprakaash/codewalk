@@ -13,19 +13,21 @@ import (
 
 // Walk is the JSON written to walk.json.
 type Walk struct {
-	GoroutineNotes json.RawMessage `json:"goroutineNotes"`
-	Title          string          `json:"title"`
-	Scope          string          `json:"scope"`
-	Summary        string          `json:"summary"`
-	Repo           string          `json:"repo"`
-	Commit         string          `json:"commit"`
-	Dirty          bool            `json:"dirty"`
-	CapturedAt     string          `json:"capturedAt"`
-	CapCommit      string          `json:"capCommit"`
-	Packages       []Package       `json:"packages"`
-	Nodes          ordered[*Node]  `json:"nodes"`
-	Types          ordered[*Type]  `json:"types"`
-	Workflows      []Workflow      `json:"workflows"`
+	GoroutineNotes json.RawMessage  `json:"goroutineNotes"`
+	Title          string           `json:"title"`
+	Scope          string           `json:"scope"`
+	Summary        string           `json:"summary"`
+	Repo           string           `json:"repo"`
+	Commit         string           `json:"commit"`
+	Dirty          bool             `json:"dirty"`
+	CapturedAt     string           `json:"capturedAt"`
+	CapCommit      string           `json:"capCommit"`
+	Packages       []Package        `json:"packages"`
+	Nodes          ordered[*Node]   `json:"nodes"`
+	Types          ordered[*Type]   `json:"types"`
+	Funcs          ordered[*Method] `json:"funcs"`
+	Workflows      []Workflow       `json:"workflows"`
+	Patterns       []Pattern        `json:"patterns"`
 }
 
 type Package struct {

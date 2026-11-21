@@ -7,6 +7,7 @@ export interface Goto {
   node(id: string): void;
   type(symbol: string): void;
   method(typeSymbol: string, name: string): void;
+  func(symbol: string): void;
   edge(id: string): void;
   step(i: number, wi?: string | null): void;
   whatif(id: string): void;

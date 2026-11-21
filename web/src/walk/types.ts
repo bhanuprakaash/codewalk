@@ -68,7 +68,14 @@ export interface Method {
   errs: Err[];
   gos: Go[];
   locks: string[];
+  selects?: { line: number; text: string }[];
   code: CodeBlock;
+}
+export interface Pattern {
+  id: string;
+  name: string;
+  what: string;
+  sites: { symbol: string; label: string }[];
 }
 export interface WalkType {
   symbol: string;
@@ -155,7 +162,9 @@ export interface Walk {
   packages: { dir: string; name: string; doc: string; role?: string; nodes: string[] }[];
   nodes: Record<string, WalkNode>;
   types: Record<string, WalkType>;
+  funcs?: Record<string, Method>;
   workflows: Workflow[];
+  patterns?: Pattern[];
 }
 export interface SystemEdge {
   id: string;
@@ -173,6 +182,8 @@ export interface System {
   boxes: Record<string, WalkNode & { pos: Pt }>;
   edges: SystemEdge[];
   types: Record<string, WalkType>;
+  funcs?: Record<string, Method>;
+  patterns?: Pattern[];
 }
 export interface User {
   positions?: Record<string, { layout: string; nodes: Record<string, Pt> }>;

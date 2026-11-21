@@ -1,5 +1,6 @@
 import { KIND } from './graph';
 import { Chip } from './parts';
+import { Patterns } from './patterns';
 import type { Walk } from './types';
 
 export function Overview({
@@ -54,6 +55,12 @@ export function Overview({
             </div>
           </div>
         ))}
+      </div>
+      <div className="ov-h" style={{ marginTop: 26 }}>
+        Go patterns
+      </div>
+      <div className="ov-patterns">
+        <Patterns />
       </div>
       <div className="ov-h" style={{ marginTop: 26 }}>
         Types

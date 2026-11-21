@@ -36,6 +36,7 @@ type builder struct {
 	scan    *scan.Result
 	nodes   ordered[*Node]
 	types   ordered[*Type]
+	funcs   ordered[*Method]
 	files   map[string][]string
 	sources map[string]Source
 	caps    map[string]json.RawMessage
@@ -133,6 +134,7 @@ func (b *builder) build() {
 	if sb.State != nil && b.capDir != "" {
 		b.state(workflows)
 	}
+	patterns := b.patterns()
 	if len(b.res.Errors) > 0 {
 		return
 	}
@@ -156,7 +158,7 @@ func (b *builder) build() {
 	b.res.Walk = &Walk{
 		GoroutineNotes: goroutines, Title: sb.Title, Scope: sb.Scope, Summary: sb.Summary, Repo: b.repo,
 		Commit: commit, Dirty: dirty, CapturedAt: capturedAt, CapCommit: capCommit,
-		Packages: packages, Nodes: b.nodes, Types: b.types, Workflows: workflows,
+		Packages: packages, Nodes: b.nodes, Types: b.types, Funcs: b.funcs, Workflows: workflows, Patterns: patterns,
 	}
 	b.res.Summary = b.summary(workflows, commit, dirty)
 }
@@ -437,9 +439,7 @@ func (b *builder) addType(dir, name, role string) string {
 		if !strings.HasPrefix(k, name+".") {
 			continue
 		}
-		t.Methods = append(t.Methods, Method{Name: k[len(name)+1:], Symbol: dir + ":" + k, Sig: f.Sig, Doc: f.Doc, Path: f.File, Line: f.Line,
-			Errs: orEmpty(f.Errs), Gos: orEmpty(f.Gos), Locks: uniqueLocks(f.Locks), Selects: orEmpty(f.Select),
-			Code: b.slice(f.File, b.withDocStart(f.File, f.Line), f.End)})
+		t.Methods = append(t.Methods, b.method(dir, k, f))
 	}
 	for _, i := range b.scan.Implements {
 		if i.Iface == p.Name+"."+name {
@@ -448,6 +448,17 @@ func (b *builder) addType(dir, name, role string) string {
 	}
 	b.types.set(sym, t)
 	return sym
+}
+
+// method is what a method or func card shows; Name is the key after the receiver.
+func (b *builder) method(dir, key string, f *scan.Func) Method {
+	_, name, ok := strings.Cut(key, ".")
+	if !ok {
+		name = key
+	}
+	return Method{Name: name, Symbol: dir + ":" + key, Sig: f.Sig, Doc: f.Doc, Path: f.File, Line: f.Line,
+		Errs: orEmpty(f.Errs), Gos: orEmpty(f.Gos), Locks: uniqueLocks(f.Locks), Selects: orEmpty(f.Select),
+		Code: b.slice(f.File, b.withDocStart(f.File, f.Line), f.End)}
 }
 
 // typeRef turns "store.Note", "[]store.Note" or "*app.Server" into a type symbol when

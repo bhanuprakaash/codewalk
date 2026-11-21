@@ -3,7 +3,7 @@ import { Ask, useAsk } from './Ask';
 import { Legend, Summary, Tracebar } from './Bars';
 import { Canvas, type CanvasHandle } from './Canvas';
 import { SeenButton, useChanges } from './changes';
-import { EdgeCard, MethodCard, NodeCard, TypeCard } from './cards';
+import { EdgeCard, FuncCard, MethodCard, NodeCard, TypeCard } from './cards';
 import { WalkCtx, type Goto } from './ctx';
 import { layoutOf, neighbourhood } from './graph';
 import { valueText } from './Json';
@@ -74,6 +74,7 @@ export function Explorer({
       const node = Object.values(walk.nodes).find((n) => n.symbol === symbol);
       open(node ? { k: 'node', id: node.id } : { k: 'method', id: `${typeSymbol}|${name}` });
     },
+    func: (id) => open({ k: 'func', id }),
     edge: (id) => open({ k: 'edge', id, wf: s.view }),
     step: (i, wi) => dispatch({ t: 'trace', i, wi }),
     whatif: (id) => dispatch({ t: 'trace', i: 0, wi: id }),
@@ -177,6 +178,7 @@ export function Explorer({
   else if (cur.k === 'node') body = <NodeCard id={cur.id} />;
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
+  else if (cur.k === 'func') body = <FuncCard symbol={cur.id} />;
   else if (cur.k === 'orphans') body = <OrphansCard list={lost} />;
   else body = <EdgeCard id={cur.id} />;
 

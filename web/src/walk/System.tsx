@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, type CanvasHandle } from './Canvas';
 import { ChangeSec, SeenButton, useChanges } from './changes';
-import { MethodCard, TypeCard } from './cards';
+import { FuncCard, MethodCard, TypeCard } from './cards';
 import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
 import { BoxIcon } from './icons';
 import { initNav, reducer } from './nav';
 import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
 import { Panel } from './Panel';
+import { PatternsCard } from './patterns';
 import { Chip, Sec } from './parts';
 import type { Pt, System as SystemData, User, Walk } from './types';
 
@@ -97,6 +98,8 @@ function SystemView({
         Object.values(sys.boxes).map((b) => [b.id, { ...b, icon: b.icon || b.kind }]),
       ),
       types: sys.types,
+      funcs: sys.funcs,
+      patterns: sys.patterns,
       workflows: [],
     }),
     [sys],
@@ -127,7 +130,7 @@ function SystemView({
 
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
   const lost = orphans(walk, notes, true);
-  const open = (k: 'node' | 'type' | 'method' | 'orphans', id: string) =>
+  const open = (k: 'node' | 'type' | 'method' | 'func' | 'orphans' | 'patterns', id: string) =>
     dispatch({ t: 'open', entry: { k, id } });
   const go: Goto = {
     node: (id) => {
@@ -136,6 +139,7 @@ function SystemView({
     },
     type: (id) => open('type', id),
     method: (typeSymbol, name) => open('method', `${typeSymbol}|${name}`),
+    func: (id) => open('func', id),
     edge: (id) => dispatch({ t: 'open', entry: { k: 'edge', id, wf: view } }),
     step: () => {},
     whatif: () => {},
@@ -192,6 +196,8 @@ function SystemView({
   else if (cur.k === 'node') body = <BoxCard id={cur.id} sys={sys} onOpen={onOpen} />;
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
+  else if (cur.k === 'func') body = <FuncCard symbol={cur.id} />;
+  else if (cur.k === 'patterns') body = <PatternsCard />;
   else if (cur.k === 'edge') body = <EdgeCard id={cur.id} sys={sys} />;
   else if (cur.k === 'orphans') body = <OrphansCard list={lost} />;
 
@@ -208,6 +214,7 @@ function SystemView({
               {sys.commit.slice(0, 7)}
               {saveFailed ? ' · could not save' : ''}
             </span>
+            <button onClick={() => open('patterns', '')}>Go patterns</button>
             {lost.length > 0 && (
               <button onClick={() => open('orphans', '')}>Orphaned notes · {lost.length}</button>
             )}

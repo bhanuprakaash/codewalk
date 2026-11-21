@@ -57,6 +57,7 @@ type (
 		Chans  []Site `json:"chans,omitempty"`
 		Locks  []Site `json:"locks,omitempty"`
 		Select []Site `json:"selects,omitempty"`
+		ErrIs  []Site `json:"errIs,omitempty"`
 	}
 	Sentinel struct {
 		Name string `json:"name"`
@@ -409,7 +410,11 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 							fn.Locks = append(fn.Locks, Site{Mu: sc.src(sel.X), Text: sc.src(s), Line: sc.line(s)})
 							return true
 						}
-						fn.Calls = append(fn.Calls, Site{Callee: resolve(s), Text: sc.src(s.Fun), Line: sc.line(s)})
+						callee := resolve(s)
+						if callee == "errors.Is" && len(s.Args) == 2 {
+							fn.ErrIs = append(fn.ErrIs, Site{Text: sc.src(s.Args[1]), Line: sc.line(s)})
+						}
+						fn.Calls = append(fn.Calls, Site{Callee: callee, Text: sc.src(s.Fun), Line: sc.line(s)})
 					case *ast.SendStmt:
 						fn.Chans = append(fn.Chans, Site{Text: sc.src(s), Line: sc.line(s), Cond: "send"})
 					case *ast.UnaryExpr:

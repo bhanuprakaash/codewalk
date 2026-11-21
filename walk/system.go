@@ -34,13 +34,15 @@ type systemEdgeSpec struct{ From, To, Kind, Label, What string }
 
 // System is the JSON written to system.built.json (or system-<id>.built.json).
 type System struct {
-	Title   string         `json:"title"`
-	Summary string         `json:"summary"`
-	Repo    string         `json:"repo"`
-	Commit  string         `json:"commit"`
-	Boxes   ordered[*Box]  `json:"boxes"`
-	Edges   []SystemEdge   `json:"edges"`
-	Types   ordered[*Type] `json:"types"`
+	Title    string           `json:"title"`
+	Summary  string           `json:"summary"`
+	Repo     string           `json:"repo"`
+	Commit   string           `json:"commit"`
+	Boxes    ordered[*Box]    `json:"boxes"`
+	Edges    []SystemEdge     `json:"edges"`
+	Types    ordered[*Type]   `json:"types"`
+	Funcs    ordered[*Method] `json:"funcs"`
+	Patterns []Pattern        `json:"patterns"`
 }
 
 type Box struct {
@@ -177,7 +179,8 @@ func buildSystem(path string, raw []byte) (*Result, error) {
 	if c, err := sh(repo, "git", "rev-parse", "HEAD"); err == nil {
 		sys.Commit = c
 	}
-	sys.Types = b.types
+	sys.Patterns = b.patterns()
+	sys.Types, sys.Funcs = b.types, b.funcs
 	res.System = sys
 	res.Summary = fmt.Sprintf("%d boxes, %d edges (%d imports checked), %d types, commit %s",
 		len(sys.Boxes.keys), len(sys.Edges), imports, len(sys.Types.keys), short(sys.Commit))
