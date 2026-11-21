@@ -1,0 +1,62 @@
+{
+  "title": "tiny: save a note",
+  "repo": "../mod",
+  "scope": "app/",
+  "summary": "A caller saves a note. The server checks it is open and the store keeps it.",
+  "scan": ["app", "store"],
+  "capture": "capture",
+  "packages": {
+    "app": "takes notes from callers",
+    "store": "keeps the notes"
+  },
+  "types": [{ "symbol": "store:Store", "role": "keeps the notes in memory" }],
+  "nodes": [
+    { "id": "caller", "kind": "start", "pkg": "app", "label": "caller", "what": "Something calls Save with a line of text." },
+    {
+      "id": "save",
+      "kind": "func",
+      "symbol": "app:Server.Save",
+      "what": "Takes the lock, refuses when closed, stores the note and starts a flush.",
+      "why": { "text": "The lock guards the closed flag.", "source": "inferred" }
+    },
+    { "id": "put", "kind": "func", "symbol": "store:Store.Put", "what": "Gives the note the next id and keeps it." },
+    { "id": "flush", "kind": "func", "symbol": "store:Store.Flush", "what": "Would write the notes out." },
+    { "id": "closed", "kind": "exit", "sentinel": "app:ErrClosed", "what": "Save returns this once the server stopped." }
+  ],
+  "workflows": [
+    {
+      "id": "save",
+      "title": "Save a note",
+      "summary": "Save checks the server is open, then the store keeps the note.",
+      "nodes": ["caller", "save", "put", "flush", "closed"],
+      "edges": [
+        { "from": "caller", "to": "save", "label": "Save(text)" },
+        { "from": "save", "to": "put" },
+        { "from": "save", "to": "flush", "kind": "go" },
+        { "from": "save", "to": "closed", "kind": "when", "cond": "s.closed", "match": "ErrClosed", "skip": "needs a stopped server" }
+      ],
+      "trace": [
+        {
+          "at": "caller->save",
+          "title": "A note arrives",
+          "does": "The caller passes the text to Save.",
+          "values": [{ "name": "text", "type": "string", "dir": "in", "capture": "request.json#/text" }]
+        },
+        {
+          "at": "save->put",
+          "title": "The store keeps it",
+          "does": "Save hands the text to the store and gets the note back.",
+          "values": [
+            { "name": "text", "type": "string", "dir": "in", "constructed": "hello", "basis": "Save passes its argument through" },
+            { "name": "note", "type": "store.Note", "dir": "out", "capture": "db.json#/notes/find:id=1" }
+          ]
+        }
+      ]
+    }
+  ],
+  "state": {
+    "module": "example.com/tiny",
+    "roots": { "s": { "type": "*example.com/tiny/app.Server" } },
+    "watch": [{ "owner": "Server", "name": "s.closed", "expr": "s.closed" }]
+  }
+}

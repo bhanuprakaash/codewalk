@@ -16,6 +16,7 @@ import (
 
 	"github.com/bhanuprakaash/codewalk/scan"
 	"github.com/bhanuprakaash/codewalk/server"
+	"github.com/bhanuprakaash/codewalk/walk"
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>...")
+		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json>")
 	}
 	switch args[0] {
 	case "serve":
@@ -38,8 +39,10 @@ func run(args []string) error {
 		return uninstall()
 	case "scan":
 		return scanCmd(args[1:])
+	case "validate":
+		return validate(args[1:])
 	}
-	return fmt.Errorf("unknown command %q (want serve, install, uninstall or scan)", args[0])
+	return fmt.Errorf("unknown command %q (want serve, install, uninstall, scan or validate)", args[0])
 }
 
 func serve(args []string) error {
@@ -76,6 +79,33 @@ func scanCmd(args []string) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", " ")
 	return enc.Encode(res)
+}
+
+// validate prints what it found the way a person reads it and exits 1 on any error, so a
+// storyboard problem is not wrapped in "codewalk:".
+func validate(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: codewalk validate <storyboard.json>")
+	}
+	res, err := walk.Build(args[0])
+	if err != nil {
+		return err
+	}
+	if err := res.Write(); err != nil {
+		return err
+	}
+	for _, w := range res.Warnings {
+		fmt.Println("warn: " + w)
+	}
+	for _, e := range res.Errors {
+		fmt.Println("ERROR: " + e)
+	}
+	if len(res.Errors) > 0 {
+		fmt.Printf("\n%d error(s); nothing written\n", len(res.Errors))
+		os.Exit(1)
+	}
+	fmt.Printf("\nwrote %s\n%s\n", res.WalkPath(), res.Summary)
+	return nil
 }
 
 func portHolder(port int) string {
