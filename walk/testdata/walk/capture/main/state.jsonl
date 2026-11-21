@@ -1,0 +1,1 @@
+{"n":1,"id":"app/app.go:31","goroutine":1,"fn":"example.com/tiny/app.(*Server).Save","t":"2026-01-02T03:04:05Z","watch":{"s.closed":false},"goroutines":[]}

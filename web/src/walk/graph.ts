@@ -1,0 +1,114 @@
+import type { Edge, Kind, Pt, Workflow } from './types';
+
+export const NW = 210;
+export const NH = 58;
+
+export const KIND: Record<Kind, { g: string; name: string }> = {
+  start: { g: '▶', name: 'Starts' },
+  func: { g: 'ƒ', name: 'Function' },
+  type: { g: 'T', name: 'Type' },
+  store: { g: '≡', name: 'Stores' },
+  outside: { g: '☁', name: 'Outside' },
+  you: { g: '✋', name: 'You' },
+  output: { g: '✓', name: 'Output' },
+  exit: { g: '⤫', name: 'Early exit' },
+};
+export const kc = (k: string) => `var(--k-${k})`;
+export const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+export const ease = (x: number) => {
+  x = clamp(x);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+};
+export const textWidth = (s: string, px: number) => s.length * px * 0.6 + 14;
+
+type Anchor = Pt & { h: boolean; s: number };
+function anchor(a: Pt, b: Pt): Anchor {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.abs(dx) * NH > Math.abs(dy) * NW) {
+    return { x: a.x + (Math.sign(dx) * NW) / 2, y: a.y, h: true, s: Math.sign(dx) };
+  }
+  return { x: a.x, y: a.y + (Math.sign(dy || 1) * NH) / 2, h: false, s: Math.sign(dy || 1) };
+}
+
+export function curve(a: Pt, b: Pt, bent: boolean): Pt[] {
+  const p0 = anchor(a, b);
+  const p3 = anchor(b, a);
+  const d = Math.max(36, Math.hypot(p3.x - p0.x, p3.y - p0.y) * 0.38);
+  const c = (p: Anchor) => (p.h ? { x: p.x + p.s * d, y: p.y } : { x: p.x, y: p.y + p.s * d });
+  let c1 = c(p0);
+  let c2 = c(p3);
+  if (bent) {
+    const nx = -(p3.y - p0.y);
+    const ny = p3.x - p0.x;
+    const len = Math.hypot(nx, ny) || 1;
+    const k = 46;
+    c1 = { x: c1.x + (nx / len) * k, y: c1.y + (ny / len) * k };
+    c2 = { x: c2.x + (nx / len) * k, y: c2.y + (ny / len) * k };
+  }
+  return [p0, c1, c2, p3];
+}
+
+export function bez(Q: Pt[], t: number): Pt {
+  const u = 1 - t;
+  const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return {
+    x: w[0] * Q[0].x + w[1] * Q[1].x + w[2] * Q[2].x + w[3] * Q[3].x,
+    y: w[0] * Q[0].y + w[1] * Q[1].y + w[2] * Q[2].y + w[3] * Q[3].y,
+  };
+}
+
+export const pathOf = (Q: Pt[]) =>
+  `M${Q[0].x},${Q[0].y} C${Q[1].x},${Q[1].y} ${Q[2].x},${Q[2].y} ${Q[3].x},${Q[3].y}`;
+
+export const isBent = (wf: Workflow, e: Edge) =>
+  e.kind === 'asks' ||
+  (e.from > e.to && wf.edges.some((x) => x !== e && x.from === e.to && x.to === e.from));
+
+export const edgeText = (e: Edge) =>
+  e.cond ? `${e.cond}${e.label ? ' → ' + e.label : ''}` : (e.label ?? '');
+
+export function fitLabel(text: string, Q: Pt[], full: boolean) {
+  const room = Math.max(40, Math.hypot(Q[3].x - Q[0].x, Q[3].y - Q[0].y) - 18);
+  let t = text;
+  if (!full && textWidth(t, 10.5) > room) {
+    t = t.slice(0, Math.max(3, Math.floor((room - 14) / (10.5 * 0.6)) - 1)) + '…';
+  }
+  return { text: t, width: textWidth(t, 10.5) };
+}
+
+export function neighbourhood(wf: Workflow, id: string) {
+  const ids = new Set([id]);
+  const es = new Set<string>();
+  for (const e of wf.edges) {
+    if (e.from === id || e.to === id) {
+      ids.add(e.from).add(e.to);
+      es.add(e.id);
+    }
+  }
+  return { ids, es };
+}
+
+export function boxOf(P: Record<string, Pt>, ids: Iterable<string>) {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const id of ids) {
+    const p = P[id];
+    if (!p) continue;
+    x0 = Math.min(x0, p.x - NW / 2);
+    x1 = Math.max(x1, p.x + NW / 2);
+    y0 = Math.min(y0, p.y - NH / 2);
+    y1 = Math.max(y1, p.y + NH / 2);
+  }
+  return { x0, y0, x1, y1 };
+}
+
+// saved drags belong to the layout they were made on; a rebuild with new positions starts fresh
+export function layoutOf(wf: Workflow) {
+  let h = 0;
+  for (const c of JSON.stringify(wf.pos)) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return String(h);
+}
