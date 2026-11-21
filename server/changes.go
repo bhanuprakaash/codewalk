@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -35,7 +36,7 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			Nodes  map[string]struct{ Symbol string }
 			Boxes  map[string]struct{ Pkg string }
 		}
-		name := "walk.json"
+		name, seenKey := "walk.json", "seenSha"
 		if r.URL.Query().Get("scope") == "" {
 			name = "system.built.json"
 			if id := r.URL.Query().Get("id"); id != "" {
@@ -43,10 +44,14 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 					writeError(w, http.StatusBadRequest, "id must be a plain name.")
 					return
 				}
-				name = "system-" + id + ".built.json"
+				name, seenKey = "system-"+id+".built.json", "seenSha:system:"+id
 			}
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, name))
+		var raw []byte
+		stat, err := os.Stat(filepath.Join(dir, name))
+		if err == nil {
+			raw, err = os.ReadFile(filepath.Join(dir, name))
+		}
 		if err == nil {
 			err = json.Unmarshal(raw, &built)
 		}
@@ -54,11 +59,12 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			writeError(w, fileStatus(err), "Nothing built here yet.")
 			return
 		}
-		var user struct{ SeenSha string }
+		var user map[string]json.RawMessage
+		var base string
 		if raw, err := os.ReadFile(filepath.Join(dir, "user.json")); err == nil {
 			json.Unmarshal(raw, &user)
+			json.Unmarshal(user[seenKey], &base)
 		}
-		base := user.SeenSha
 		if !isSha(base) {
 			base = built.Commit
 		}
@@ -69,7 +75,7 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 		}
 		head := strings.TrimSpace(string(out))
 		res := changes{Base: base, Head: head, Changes: map[string]walk.Change{}}
-		key := built.Repo + "|" + base + "|" + head + "|" + dir + "|" + name
+		key := built.Repo + "|" + base + "|" + head + "|" + dir + "|" + name + "|" + stat.ModTime().String() + "|" + strconv.FormatInt(stat.Size(), 10)
 		mu.Lock()
 		cached, hit := cache[key]
 		mu.Unlock()
@@ -110,6 +116,9 @@ func changeRoutes(mux *http.ServeMux, dataDir string) {
 			}
 		}
 		mu.Lock()
+		if len(cache) >= 64 {
+			clear(cache)
+		}
 		cache[key] = res
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")

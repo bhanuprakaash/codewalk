@@ -7,17 +7,27 @@ export type Notes = Record<string, string>;
 
 // a note is keyed by symbol so it survives a rebuild; nodes without one fall back to their id
 export const nodeKey = (id: string, symbol?: string) => symbol || `node:${id}`;
-export const boxKey = (id: string) => `box:${id}`;
+export const boxKey = (view: string, id: string) => `box:${view}:${id}`;
 
-export function orphans(walk: Walk, notes: Notes, boxes: boolean) {
+// view is set for a system view: its box notes are keyed per view, and the project's other views'
+// box notes are not this view's to judge. The root view's prefix also matches a child view's keys,
+// so it only owns keys with no further ':'.
+export function orphans(walk: Walk, notes: Notes, view?: string) {
   const live = new Set<string>();
   for (const n of Object.values(walk.nodes))
-    live.add(boxes ? boxKey(n.id) : nodeKey(n.id, n.symbol));
+    live.add(view ? boxKey(view, n.id) : nodeKey(n.id, n.symbol));
   for (const t of Object.values(walk.types)) {
     live.add(t.symbol);
     for (const m of t.methods) live.add(m.symbol);
   }
-  return Object.entries(notes).filter(([k]) => !live.has(k));
+  for (const k of Object.keys(walk.funcs ?? {})) live.add(k);
+  const mine = (k: string) => {
+    const id = k.slice(`box:${view}:`.length);
+    return k.startsWith(`box:${view}:`) && (view !== 'system' || !id.includes(':'));
+  };
+  return Object.entries(notes).filter(
+    ([k]) => !live.has(k) && (!view || !k.startsWith('box:') || mine(k)),
+  );
 }
 
 export function NoteSec({ k }: { k: string }) {

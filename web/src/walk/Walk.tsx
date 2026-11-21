@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Explorer } from './Explorer';
+import { loadUser } from './user';
 import type { User, Walk as WalkData } from './types';
 
 type Loaded = { walk: WalkData; user: User } | { error: string } | null;
@@ -28,11 +29,7 @@ export function Walk({
         return { error: body?.error ?? res.statusText };
       }
       const walk = await res.json();
-      const user = await fetch(`/api/user?${query}`).then(
-        (r) => (r.ok ? r.json() : {}),
-        () => ({}),
-      );
-      return { walk, user };
+      return { walk, user: await loadUser(query) };
     })()
       .catch(() => ({ error: 'Could not reach the codewalk server. Is it running?' }))
       .then((d) => live && setData(d));

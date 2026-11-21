@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	"github.com/bhanuprakaash/codewalk/scan"
 )
@@ -55,7 +56,6 @@ type Node struct {
 	Code *Slice `json:"code,omitempty"`
 }
 
-// Place is where a symbol or sentinel is declared.
 type Place struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
@@ -160,7 +160,6 @@ type Step struct {
 	State  *StepState `json:"state,omitempty"`
 }
 
-// Stop is the line Delve stops at for a step.
 type Stop struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
@@ -261,7 +260,27 @@ func writeJSON(path string, v any, indent bool) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return WriteFileAtomic(path, b)
+}
+
+func WriteFileAtomic(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // marshal encodes without HTML escaping; the output ends with a newline.

@@ -5,14 +5,18 @@ import { System } from './walk/System';
 import { Walk } from './walk/Walk';
 
 type Project = { name: string; scopes: string[] };
-type Route = { project?: string; scope?: string; view?: string };
+type Route = { project?: string; scope?: string; view?: string; from?: string };
 
 const parse = (): Route => {
-  const [project, scope, view] = location.pathname
-    .split('/')
-    .filter(Boolean)
-    .map(decodeURIComponent);
-  return { project, scope, view };
+  try {
+    const [project, scope, view] = location.pathname
+      .split('/')
+      .filter(Boolean)
+      .map(decodeURIComponent);
+    return { project, scope, view, from: history.state?.from };
+  } catch {
+    return {};
+  }
 };
 const hrefOf = (r: Route) =>
   '/' +
@@ -43,7 +47,7 @@ export function App() {
   }, [route.project, route.scope]);
 
   const navigate = (r: Route) => {
-    history.pushState(null, '', hrefOf(r));
+    history.pushState(r.from ? { from: r.from } : null, '', hrefOf(r));
     setRoute(r);
   };
 
@@ -107,7 +111,13 @@ export function App() {
           <System
             project={route.project}
             id={route.scope?.slice('system:'.length)}
-            onOpen={(drill) => navigate({ project: route.project, scope: drill })}
+            onOpen={(drill) =>
+              navigate({
+                project: route.project,
+                scope: drill,
+                from: route.scope?.startsWith('system:') ? route.scope : undefined,
+              })
+            }
           />
         ) : (
           <p className="note">Pick a project or a scope on the left.</p>
@@ -119,7 +129,9 @@ export function App() {
 
 function Crumbs({ route, onGo }: { route: Route; onGo(r: Route): void }) {
   const parts: [string, Route][] = [[route.project!, { project: route.project }]];
-  if (route.scope) parts.push([route.scope, { project: route.project, scope: route.scope }]);
+  if (route.from) parts.push([route.from, { project: route.project, scope: route.from }]);
+  if (route.scope)
+    parts.push([route.scope, { project: route.project, scope: route.scope, from: route.from }]);
   if (route.view && route.view !== OVERVIEW) parts.push([route.view, route]);
   return (
     <div className="crumbs">

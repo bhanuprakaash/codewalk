@@ -60,7 +60,12 @@ export function useAsk(query: string) {
         }
       }
     } catch (err) {
-      patch(() => ({ error: `Could not reach the codewalk server: ${(err as Error).message}` }));
+      patch(() => ({
+        error:
+          err instanceof TypeError
+            ? `Could not reach the codewalk server: ${err.message}`
+            : (err as Error).message,
+      }));
     }
     patch(() => ({ pending: false }));
     asking.current = false;

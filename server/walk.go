@@ -8,8 +8,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/bhanuprakaash/codewalk/walk"
 )
 
 type walkInfo struct {
@@ -72,18 +76,37 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 		w.Write(raw)
 	})
 
-	mux.HandleFunc("PUT /api/user", func(w http.ResponseWriter, r *http.Request) {
+	var userLocks sync.Map
+	mux.HandleFunc("PATCH /api/user", func(w http.ResponseWriter, r *http.Request) {
 		dir, ok := dirOf(w, r, dataDir, false)
 		if !ok {
 			return
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4<<20))
-		var doc map[string]json.RawMessage
-		if err != nil || json.Unmarshal(body, &doc) != nil || doc == nil {
-			writeError(w, http.StatusBadRequest, "user.json must be a JSON object.")
+		var patch map[string]json.RawMessage
+		if err != nil || json.Unmarshal(body, &patch) != nil || patch == nil {
+			writeError(w, http.StatusBadRequest, "The patch must be a JSON object.")
 			return
 		}
-		if err := writeFileAtomic(filepath.Join(dir, "user.json"), body); err != nil {
+		path := filepath.Join(dir, "user.json")
+		lock, _ := userLocks.LoadOrStore(path, &sync.Mutex{})
+		lock.(*sync.Mutex).Lock()
+		defer lock.(*sync.Mutex).Unlock()
+		doc := map[string]json.RawMessage{}
+		raw, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if json.Unmarshal(raw, &doc) != nil || doc == nil {
+			doc = map[string]json.RawMessage{}
+		}
+		if err := mergeUser(doc, patch); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		out, _ := json.Marshal(doc)
+		if err := walk.WriteFileAtomic(path, out); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -103,11 +126,21 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 		path := r.URL.Query().Get("path")
 		line, _ := strconv.Atoi(r.URL.Query().Get("line"))
 		line = max(line, 1)
-		if !filepath.IsLocal(path) {
+		full, rel, err := resolveInRepo(info.Repo, path)
+		if err != nil {
 			writeError(w, http.StatusNotFound, "No such file in the repo.")
 			return
 		}
-		raw, err := os.ReadFile(filepath.Join(info.Repo, path))
+		st, err := os.Stat(full)
+		if err != nil || !st.Mode().IsRegular() {
+			writeError(w, http.StatusNotFound, "No such file in the repo.")
+			return
+		}
+		if st.Size() > maxCodeSize {
+			writeError(w, http.StatusRequestEntityTooLarge, rel+" is too large to show.")
+			return
+		}
+		raw, err := os.ReadFile(full)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "No such file in the repo.")
 			return
@@ -122,6 +155,32 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 	})
 
 	mux.HandleFunc("POST /api/ask", func(w http.ResponseWriter, r *http.Request) { ask(w, r, dataDir) })
+}
+
+const maxCodeSize = 1 << 20
+
+// resolveInRepo follows symlinks and returns the file's real path and its path relative to the
+// real repo root. It fails for a path that leaves the repo or goes into .git.
+func resolveInRepo(repo, path string) (full, rel string, err error) {
+	root, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		return "", "", err
+	}
+	if !filepath.IsLocal(path) {
+		return "", "", errors.New("not local")
+	}
+	if full, err = filepath.EvalSymlinks(filepath.Join(root, path)); err != nil {
+		return "", "", err
+	}
+	if rel, err = filepath.Rel(root, full); err != nil || !filepath.IsLocal(rel) {
+		return "", "", errors.New("outside the repo")
+	}
+	for _, p := range []string{path, rel} {
+		if slices.ContainsFunc(strings.Split(filepath.ToSlash(p), "/"), func(e string) bool { return strings.EqualFold(e, ".git") }) {
+			return "", "", errors.New("inside .git")
+		}
+	}
+	return full, rel, nil
 }
 
 // scopeDir maps ?project=&scope= to <data>/<project>/<scope>. Both must be a single plain name,
@@ -168,20 +227,31 @@ func readWalkInfo(dir string) (walkInfo, error) {
 	return info, err
 }
 
-func writeFileAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".user-*.tmp")
-	if err != nil {
-		return err
+// mergeUser sets each top-level key of patch in doc. positions and notes merge one level deeper,
+// and a null entry deletes it.
+func mergeUser(doc, patch map[string]json.RawMessage) error {
+	for k, v := range patch {
+		if k != "positions" && k != "notes" {
+			doc[k] = v
+			continue
+		}
+		var entries, merged map[string]json.RawMessage
+		if json.Unmarshal(v, &entries) != nil || entries == nil {
+			return errors.New(k + " must be a JSON object.")
+		}
+		if json.Unmarshal(doc[k], &merged) != nil || merged == nil {
+			merged = map[string]json.RawMessage{}
+		}
+		for name, entry := range entries {
+			if string(entry) == "null" {
+				delete(merged, name)
+			} else {
+				merged[name] = entry
+			}
+		}
+		doc[k], _ = json.Marshal(merged)
 	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return nil
 }
 
 func fileStatus(err error) int {

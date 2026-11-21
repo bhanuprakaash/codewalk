@@ -76,7 +76,6 @@ func (b *builder) workflow(w workflowSpec) Workflow {
 		}
 		return []string{at}
 	}
-	// a what-if forks from a main-trace step and runs its own captured scenario
 	whatifs := make([]Whatif, 0, len(w.Whatifs))
 	for _, x := range w.Whatifs {
 		xctx := fmt.Sprintf("%s what-if %s", ctx, x.ID)

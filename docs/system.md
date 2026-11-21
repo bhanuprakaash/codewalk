@@ -10,7 +10,7 @@ canvas as a walk.
   system.json               written by hand or by a skill
   system.built.json         written by `codewalk validate system.json`; the app reads only this
   system-<id>.json          a child system view (optional), built to system-<id>.built.json
-  user.json                 owned by the app: dragged positions of every system view in the project
+  user.json                 owned by the app: positions, notes and seen commits of every system view
 ```
 
 `codewalk validate <project>/system.json` checks the file against the repo and writes the built
@@ -68,12 +68,20 @@ file only when there are no errors. The app serves the built file as written
 
 ## Changes
 
-A package box gets a dot when any file in its package differs between the project's
-`user.json` `seenSha` (default: the commit the view was built from) and the repo's HEAD; its card
-lists the files. "Mark seen" stores HEAD as `seenSha`.
+A package box gets a dot when any file in its package differs between the view's seen commit in
+the project's `user.json` (default: the commit the view was built from) and the repo's HEAD; its
+card lists the files. The seen commit is `seenSha` for the root view and `seenSha:system:<id>` for
+a child view. "Mark seen" stores HEAD there.
 
 ## Positions
 
 Dragged boxes are saved in the project's `user.json` under `positions.system` (or
 `positions["system:<id>"]` for a child view), with the same layout check as walks: when the built
 positions change, saved drags are dropped. Double-click the canvas to reset.
+
+## Notes
+
+A note on a box is saved in the project's `user.json` under `notes["box:<view>:<box id>"]`, where
+`<view>` is `system` or `system:<id>`, so the same box id in two views has two notes. Notes on
+types and funcs are keyed by their symbol. A view lists a note as orphaned when its box or symbol
+is no longer in the view; it only checks its own `box:<view>:` notes and symbol notes.

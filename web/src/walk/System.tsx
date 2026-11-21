@@ -10,6 +10,7 @@ import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
 import { Panel } from './Panel';
 import { PatternsCard } from './patterns';
 import { Chip, Sec } from './parts';
+import { loadUser, patchUser } from './user';
 import type { Pt, System as SystemData, User, Walk } from './types';
 
 type Loaded = { sys: SystemData; user: User } | { error: string } | null;
@@ -36,11 +37,7 @@ export function System({
         return { error: body?.error ?? res.statusText };
       }
       const sys = await res.json();
-      const user = await fetch(`/api/user?${query}`).then(
-        (r) => (r.ok ? r.json() : {}),
-        () => ({}),
-      );
-      return { sys, user };
+      return { sys, user: await loadUser(query) };
     })()
       .catch(() => ({ error: 'Could not reach the codewalk server. Is it running?' }))
       .then((d) => live && setData(d));
@@ -129,7 +126,7 @@ function SystemView({
   const selected = s.open && cur ? cur : null;
 
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
-  const lost = orphans(walk, notes, true);
+  const lost = orphans(walk, notes, view);
   const open = (k: 'node' | 'type' | 'method' | 'func' | 'orphans' | 'patterns', id: string) =>
     dispatch({ t: 'open', entry: { k, id } });
   const go: Goto = {
@@ -162,38 +159,36 @@ function SystemView({
     ...graph.pos,
     ...(saved?.layout === layoutOf(graph) ? saved.nodes : {}),
   };
-  const save = (doc: User) => {
+  const save = (doc: User, patch: object) => {
     userDoc.current = doc;
-    fetch(`/api/user?${query}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(doc),
-    }).then(
-      (r) => setSaveFailed(!r.ok),
-      () => setSaveFailed(true),
-    );
+    return patchUser(query, patch).then((ok) => {
+      setSaveFailed(!ok);
+      return ok;
+    });
   };
   const moved = (nodes: Record<string, Pt> | null) => {
     const positions = { ...userDoc.current.positions };
-    if (nodes) positions[view] = { layout: layoutOf(graph), nodes };
+    const entry = nodes ? { layout: layoutOf(graph), nodes } : null;
+    if (entry) positions[view] = entry;
     else delete positions[view];
-    save({ ...userDoc.current, positions });
+    save({ ...userDoc.current, positions }, { positions: { [view]: entry } });
   };
   const setNote = (key: string, text: string | null) => {
     const next = { ...notes };
     if (text) next[key] = text;
     else delete next[key];
     setNotes(next);
-    save({ ...userDoc.current, notes: next });
+    save({ ...userDoc.current, notes: next }, { notes: { [key]: text || null } });
   };
-  const seen = (head: string) => {
-    save({ ...userDoc.current, seenSha: head });
-    changed.clear();
-  };
+  const seenKey = view === 'system' ? 'seenSha' : `seenSha:${view}`;
+  const seen = (head: string) =>
+    save({ ...userDoc.current, [seenKey]: head }, { [seenKey]: head }).then(
+      (ok) => ok && changed.clear(),
+    );
 
   let body;
   if (!cur) body = <p className="empty">Click a box, an edge or a type.</p>;
-  else if (cur.k === 'node') body = <BoxCard id={cur.id} sys={sys} onOpen={onOpen} />;
+  else if (cur.k === 'node') body = <BoxCard id={cur.id} sys={sys} view={view} onOpen={onOpen} />;
   else if (cur.k === 'type') body = <TypeCard symbol={cur.id} />;
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
   else if (cur.k === 'func') body = <FuncCard symbol={cur.id} />;
@@ -213,6 +208,7 @@ function SystemView({
             <span className="meta">
               {sys.commit.slice(0, 7)}
               {saveFailed ? ' · could not save' : ''}
+              {changed.error ? ` · ${changed.error}` : ''}
             </span>
             <button onClick={() => open('patterns', '')}>Go patterns</button>
             {lost.length > 0 && (
@@ -262,10 +258,12 @@ function SystemView({
 function BoxCard({
   id,
   sys,
+  view,
   onOpen,
 }: {
   id: string;
   sys: SystemData;
+  view: string;
   onOpen(drill: string): void;
 }) {
   const { walk, go, changes } = useWalk();
@@ -302,7 +300,7 @@ function BoxCard({
       </div>
       {b.what && <p style={{ lineHeight: 1.6, margin: 0 }}>{b.what}</p>}
       {changes && <ChangeSec change={changes.changes[id]} base={changes.base} />}
-      <NoteSec k={boxKey(id)} />
+      <NoteSec k={boxKey(view, id)} />
       {b.drill && (
         <p style={{ marginTop: 10 }}>
           <a onClick={() => onOpen(b.drill!)}>Open {b.drill} →</a>

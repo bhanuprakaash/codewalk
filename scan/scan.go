@@ -86,9 +86,8 @@ type (
 )
 
 type scanner struct {
-	fset *token.FileSet
-	repo string
-	// srcOf holds each parsed file's bytes, for cutting source text out by position.
+	fset  *token.FileSet
+	repo  string
 	srcOf map[string][]byte
 	// fieldTypes["pkg.Type"]["field"] = "pkg.Type" of that field, for resolving selector chains.
 	fieldTypes map[string]map[string]string
@@ -196,7 +195,6 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 			out.Packages[dir] = pk
 		}
 	}
-	// pass 1: types, fields, method names, sentinels
 	for _, pa := range all {
 		pk := pa.pkg
 		for fi, f := range pa.files {
@@ -264,7 +262,6 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 			}
 		}
 	}
-	// pass 2: funcs with their insides
 	for _, pa := range all {
 		pk := pa.pkg
 		for fi, f := range pa.files {
@@ -275,7 +272,7 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 					continue
 				}
 				fn := &Func{Name: fd.Name.Name, File: sc.rel(sc.fset.Position(fd.Pos()).Filename), Line: sc.line(fd), End: sc.fset.Position(fd.End()).Line}
-				vars := map[string]string{} // local name -> pkg.Type
+				vars := map[string]string{}
 				key := fd.Name.Name
 				if fd.Recv != nil && len(fd.Recv.List) > 0 {
 					rt := typeName(fd.Recv.List[0].Type, pk.Name, imp)
@@ -389,7 +386,6 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 								lastErr = sc.src(s.Rhs[len(s.Rhs)-1])
 							}
 						}
-						// remember locals made from a composite literal or &T{} so later calls resolve
 						for i, l := range s.Lhs {
 							id, ok := l.(*ast.Ident)
 							if !ok || i >= len(s.Rhs) {
@@ -434,7 +430,6 @@ func Scan(repoDir string, dirs []string) (*Result, error) {
 						if returnsErr && len(s.Results) > 0 {
 							last := s.Results[len(s.Results)-1]
 							if id, ok := last.(*ast.Ident); !ok || id.Name != "nil" {
-								// skip returns inside closures: they are not this func's exits
 								if inClosure() {
 									return true
 								}

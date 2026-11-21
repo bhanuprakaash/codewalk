@@ -59,17 +59,39 @@ func TestChanges(t *testing.T) {
 		}
 	}
 
-	if rec := do(h, "PUT", "/api/user?project=pr&scope=s", `{"seenSha":"--output=x"}`); rec.Code != 204 {
+	writeFile(t, filepath.Join(data, "pr/s/walk.json"), `{"repo":"`+repo+`","commit":"`+a+`","nodes":{"k":{"symbol":"p:Kept"},"e":{"symbol":"p:Edited"},"e2":{"symbol":"p:Edited"},"g":{"symbol":"p:Gone"},"start":{}}}`)
+	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "e2": "changed", "g": "removed"}) {
+		t.Errorf("walk rebuilt at the same HEAD: %v", got)
+	}
+
+	if rec := do(h, "PATCH", "/api/user?project=pr&scope=s", `{"seenSha":"--output=x"}`); rec.Code != 204 {
 		t.Fatalf("bad seenSha: %d", rec.Code)
 	}
-	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "g": "removed"}) {
+	if got := states("/api/changes?project=pr&scope=s"); !maps.Equal(got, map[string]string{"e": "changed", "e2": "changed", "g": "removed"}) {
 		t.Errorf("bad seenSha falls back to the built commit: %v", got)
 	}
 
-	if rec := do(h, "PUT", "/api/user?project=pr&scope=s", `{"seenSha":"`+b+`"}`); rec.Code != 204 {
+	if rec := do(h, "PATCH", "/api/user?project=pr&scope=s", `{"seenSha":"`+b+`"}`); rec.Code != 204 {
 		t.Fatalf("mark seen: %d", rec.Code)
 	}
 	if got := states("/api/changes?project=pr&scope=s"); len(got) != 0 {
 		t.Errorf("after mark seen: %v", got)
+	}
+
+	writeFile(t, filepath.Join(data, "pr/system-kid.built.json"), `{"repo":"`+repo+`","commit":"`+a+`","boxes":{"p":{"pkg":"p"}}}`)
+	for _, c := range []struct {
+		patch, target string
+		want          map[string]string
+	}{
+		{`{"seenSha":"` + b + `"}`, "/api/changes?project=pr", map[string]string{}},
+		{`{"seenSha":"` + b + `"}`, "/api/changes?project=pr&id=kid", map[string]string{"p": "changed"}},
+		{`{"seenSha:system:kid":"` + b + `"}`, "/api/changes?project=pr&id=kid", map[string]string{}},
+	} {
+		if rec := do(h, "PATCH", "/api/user?project=pr", c.patch); rec.Code != 204 {
+			t.Fatalf("PATCH %s: %d", c.patch, rec.Code)
+		}
+		if got := states(c.target); !maps.Equal(got, c.want) {
+			t.Errorf("%s after %s: %v, want %v", c.target, c.patch, got, c.want)
+		}
 	}
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/bhanuprakaash/codewalk/scan"
 )
 
-// Change is what happened to a symbol between two commits.
 type Change struct {
 	State string   `json:"state"`
 	Diff  []string `json:"diff,omitempty"`

@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strings"
 )
+
+var sessionID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 type askRequest struct {
 	Question string `json:"question"`
@@ -45,6 +48,10 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 		writeError(w, http.StatusBadRequest, "A question is required.")
 		return
 	}
+	if body.Session != "" && !sessionID.MatchString(body.Session) {
+		writeError(w, http.StatusBadRequest, "The session is not valid.")
+		return
+	}
 	dir, ok := scopeDir(w, r, dataDir)
 	if !ok {
 		return
@@ -59,12 +66,12 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 		"They know Go at a medium level. Answer first, in 2-5 plain sentences. Use the real names.\n"+
 		"Cite code as repo-relative path:line (e.g. run/run.go:877). Read the code before you claim anything about it; if you could not check something, say so.\n"+
 		"You are read-only: never suggest you changed anything.", info.Scope, info.Commit[:min(7, len(info.Commit))])
-	args := []string{"-p", strings.Join(body.Context.Lines, "\n") + "\n\nQuestion: " + body.Question,
-		"--model", "sonnet", "--output-format", "stream-json", "--verbose",
+	args := []string{"-p", "--model", "sonnet", "--output-format", "stream-json", "--verbose",
 		"--allowedTools", "Read", "Grep", "Glob", "--permission-mode", "dontAsk", "--append-system-prompt", system}
 	if body.Session != "" {
 		args = append(args, "--resume", body.Session)
 	}
+	args = append(args, "--", strings.Join(body.Context.Lines, "\n")+"\n\nQuestion: "+body.Question)
 
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Cache-Control", "no-store")
@@ -124,7 +131,12 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 			break
 		}
 	}
-	if err := cmd.Wait(); err != nil && !finished && answer == "" {
+	err = cmd.Wait()
+	if finished {
+		return
+	}
+	msg := "Claude Code ended without an answer."
+	if err != nil {
 		var exit *exec.ExitError
 		code := -1
 		if errors.As(err, &exit) {
@@ -136,6 +148,7 @@ func ask(w http.ResponseWriter, r *http.Request, dataDir string) {
 				last = l
 			}
 		}
-		send(map[string]any{"done": true, "error": fmt.Sprintf("Claude Code could not answer (exit %d). %s", code, last)})
+		msg = fmt.Sprintf("Claude Code could not answer (exit %d). %s", code, last)
 	}
+	send(map[string]any{"done": true, "error": msg})
 }
