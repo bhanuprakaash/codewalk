@@ -99,12 +99,8 @@ export function reducer(walk: Walk) {
       case 'go': {
         const e = s.hist[s.hi + a.d];
         if (!e) return s;
-        let n: Nav = { ...s, hi: s.hi + a.d, open: true, tab: 'details' };
-        if ((e.k === 'edge' || e.k === 'step') && e.wf !== n.view) {
-          n = { ...n, view: e.wf, tr: -1, wi: null };
-        }
-        if (e.k === 'step') n = { ...n, tr: e.id, wi: e.wi ?? null };
-        return n;
+        const n: Nav = { ...s, hi: s.hi + a.d, open: true, tab: 'details' };
+        return e.k === 'step' ? { ...n, tr: e.id, wi: e.wi ?? null } : n;
       }
       case 'tab':
         return { ...s, open: true, tab: a.tab };
