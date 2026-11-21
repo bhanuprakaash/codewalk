@@ -24,8 +24,8 @@ var patternInfo = []struct{ id, name, what string }{
 	{"go-chan", "goroutine + channel", "Work runs in its own goroutine and hands results back over a channel, so the caller keeps going and reads them when ready."},
 	{"select", "select", "Waits on several channels at once and acts on whichever is ready first: a result, a timeout or a cancel."},
 	{"ctx-cancel", "context cancel", "Makes a child context it can cancel, so everything started under it stops when the work ends, times out or is called off."},
-	{"mutex", "mutex-guarded state", "Fields are read and written only while the mutex is held, so concurrent calls never see half-updated state."},
-	{"iface", "interface with several impls", "Callers depend on the interface, so any of these types can be swapped in without changing the callers."},
+	{"mutex", "mutex-guarded state", "A sync.Mutex or sync.RWMutex in this type guards its state against concurrent calls."},
+	{"iface", "interface with several impls", "Types with these method names (signatures are not checked), so callers of the interface may be able to swap one for another."},
 	{"sentinel", "sentinel errors checked with errors.Is", "A named error value that callers test with errors.Is, which still matches after the error was wrapped with more context."},
 }
 
