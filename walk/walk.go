@@ -55,7 +55,6 @@ type Node struct {
 	Code *Slice `json:"code,omitempty"`
 }
 
-// Place is where a symbol or sentinel is declared.
 type Place struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
@@ -160,7 +159,6 @@ type Step struct {
 	State  *StepState `json:"state,omitempty"`
 }
 
-// Stop is the line Delve stops at for a step.
 type Stop struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`

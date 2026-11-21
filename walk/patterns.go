@@ -8,7 +8,6 @@ import (
 	"github.com/bhanuprakaash/codewalk/scan"
 )
 
-// Pattern is one Go pattern found in the scanned packages, with the symbols it appears in.
 type Pattern struct {
 	ID    string        `json:"id"`
 	Name  string        `json:"name"`
