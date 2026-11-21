@@ -35,17 +35,20 @@ export function useChanges(query: string) {
   return { res, error, clear };
 }
 
-export function ChangeSec({ change, base }: { change?: Change; base: string }) {
+export function ChangeSec({ change, base, head }: { change?: Change; base: string; head: string }) {
   if (!change) return null;
-  const since = `since ${base.slice(0, 7)}`;
   if (change.state === 'removed')
     return (
-      <Sec h={`Removed ${since}`}>
+      <Sec h={`Removed since ${base.slice(0, 7)}`}>
         <p className="empty">This symbol is gone at the repo's HEAD.</p>
       </Sec>
     );
   return (
-    <Sec h={`Changed ${since}`}>
+    <div className="changed">
+      <span className="h">
+        <i aria-hidden="true" />
+        Changed since you last looked
+      </span>
       {change.files && (
         <div className="rows">
           {change.files.map((f) => (
@@ -64,7 +67,10 @@ export function ChangeSec({ change, base }: { change?: Change; base: string }) {
           ))}
         </pre>
       )}
-    </Sec>
+      <span className="sub">
+        {base.slice(0, 7)} → {head.slice(0, 7)}
+      </span>
+    </div>
   );
 }
 
@@ -73,10 +79,12 @@ export function SeenButton({ res, onSeen }: { res: Changes | null; onSeen(head: 
   if (!res || !n) return null;
   return (
     <button
+      className="chg-chip"
       title={`Changes ${res.base.slice(0, 7)} → ${res.head.slice(0, 7)}`}
       onClick={() => onSeen(res.head)}
     >
-      Mark seen · {n} changed
+      <i aria-hidden="true" />
+      {n} changed since you looked · <b>Mark seen</b>
     </button>
   );
 }

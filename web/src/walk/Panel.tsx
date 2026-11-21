@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 const Icon = ({ d }: { d: string }) => (
   <svg
@@ -22,6 +22,8 @@ export function Panel({
   bodyKey,
   tab,
   ask = true,
+  subject,
+  onAsk,
   onGo,
   onTab,
   onClose,
@@ -33,11 +35,14 @@ export function Panel({
   bodyKey: string;
   tab: 'details' | 'ask';
   ask?: boolean;
+  subject?: string;
+  onAsk?(q: string): void;
   onGo(d: number): void;
   onTab(tab: 'details' | 'ask'): void;
   onClose(): void;
   children: ReactNode;
 }) {
+  const [q, setQ] = useState('');
   return (
     <aside id="panel" className={open ? 'open' : ''}>
       <div id="ptabs">
@@ -78,6 +83,27 @@ export function Panel({
       <div id="pbody" key={bodyKey}>
         {open && children}
       </div>
+      {open && ask && tab === 'details' && onAsk && (
+        <form
+          id="panelAsk"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!q.trim()) return;
+            onAsk(q.trim());
+            setQ('');
+          }}
+        >
+          <input
+            aria-label={`Ask about ${subject ?? 'this'}`}
+            placeholder={`Ask about ${subject ?? 'this'}…`}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <button type="submit" className="dark-btn">
+            Ask
+          </button>
+        </form>
+      )}
     </aside>
   );
 }

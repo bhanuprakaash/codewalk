@@ -5,14 +5,17 @@ import { Canvas, type CanvasHandle } from './Canvas';
 import { SeenButton, useChanges } from './changes';
 import { EdgeCard, FuncCard, MethodCard, NodeCard, TypeCard } from './cards';
 import { WalkCtx, type Goto } from './ctx';
+import { AskButton, TopBar, Tabs } from './Header';
 import { layoutOf, neighbourhood } from './graph';
 import { valueText } from './Json';
 import { OVERVIEW, initNav, reducer, traceOf, workflowOf, type Entry } from './nav';
 import { OrphansCard, orphans, type Notes } from './notes';
+import { PatternsCard } from './patterns';
 import { Overview } from './Overview';
 import { Panel } from './Panel';
 import { StateColumn, StepCard } from './Step';
 import { patchUser } from './user';
+import { useNav } from '../route';
 import type { Pt, User, Walk, Workflow } from './types';
 
 const startOf = (wf: Workflow, user: User): Record<string, Pt> => {
@@ -41,6 +44,7 @@ export function Explorer({
   const canvas = useRef<CanvasHandle>(null);
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
+  const { route } = useNav();
   const asked = useAsk(query);
   const changed = useChanges(query);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
@@ -79,6 +83,7 @@ export function Explorer({
     edge: (id) => open({ k: 'edge', id, wf: s.view }),
     step: (i, wi) => dispatch({ t: 'trace', i, wi }),
     whatif: (id) => dispatch({ t: 'trace', i: 0, wi: id }),
+    patterns: () => open({ k: 'patterns', id: '' }),
   };
   const stop = () => {
     if (!s.wi) canvas.current?.fitAll();
@@ -168,6 +173,13 @@ export function Explorer({
     return l;
   };
 
+  const subject =
+    cur?.k === 'node'
+      ? walk.nodes[cur.id]?.label
+      : cur?.k === 'type'
+        ? walk.types[cur.id]?.name
+        : undefined;
+
   let body;
   if (s.tab === 'ask')
     body = <Ask entries={asked.entries} query={query} onAsk={(q) => asked.ask(q, onScreen())} />;
@@ -178,47 +190,59 @@ export function Explorer({
   else if (cur.k === 'method') body = <MethodCard id={cur.id} />;
   else if (cur.k === 'func') body = <FuncCard symbol={cur.id} />;
   else if (cur.k === 'orphans') body = <OrphansCard list={lost} />;
+  else if (cur.k === 'patterns') body = <PatternsCard />;
   else body = <EdgeCard id={cur.id} />;
 
   return (
     <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
-        <header>
-          <div className="brand">{walk.title}</div>
-          <div className="sep" />
-          <div id="tabs">
-            {[{ id: OVERVIEW, title: 'Overview' }, ...walk.workflows].map((w) => (
-              <button
-                key={w.id}
-                className={s.view === w.id || (ov && w.id === OVERVIEW) ? 'on' : ''}
-                onClick={() => show(w.id)}
-              >
-                {w.title}
-              </button>
-            ))}
-          </div>
-          <div className="right">
-            <span className="meta">
-              {walk.commit.slice(0, 7)}
-              {walk.dirty ? ' · dirty' : ''}
-              {saveFailed ? ' · could not save' : ''}
-              {changed.error ? ` · ${changed.error}` : ''}
-            </span>
-            {lost.length > 0 && (
-              <button onClick={() => open({ k: 'orphans', id: '' })}>
-                Orphaned notes · {lost.length}
-              </button>
-            )}
-            <SeenButton res={changed.res} onSeen={seen} />
-            <button
-              title="Ask Claude about what you are looking at (/)"
-              onClick={() => dispatch({ t: 'tab', tab: 'ask' })}
-            >
-              Ask
+        <TopBar
+          viewLabel={wf ? wf.title : 'Overview'}
+          views={[
+            { label: 'System', to: { project: route.project } },
+            { label: 'Overview', to: { ...route, view: OVERVIEW }, on: ov },
+            ...walk.workflows.map((w) => ({
+              label: w.title,
+              to: { ...route, view: w.id },
+              on: s.view === w.id,
+            })),
+          ]}
+        >
+          <span className="meta">
+            {walk.commit.slice(0, 7)}
+            {walk.dirty ? ' · dirty' : ''}
+            {saveFailed ? ' · could not save' : ''}
+            {changed.error ? ` · ${changed.error}` : ''}
+          </span>
+          {lost.length > 0 && (
+            <button className="plain" onClick={() => open({ k: 'orphans', id: '' })}>
+              Orphaned notes · {lost.length}
             </button>
-          </div>
-        </header>
-        {!ov && <Legend />}
+          )}
+          <SeenButton res={changed.res} onSeen={seen} />
+          <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />
+        </TopBar>
+        <Tabs
+          tabs={[
+            { label: 'Overview', tone: 'ov', on: ov, open: () => show(OVERVIEW) },
+            ...walk.workflows.map((w) => ({
+              label: w.title,
+              tone: w.nodes.some((id) => walk.nodes[id].kind === 'you')
+                ? ('you' as const)
+                : ('go' as const),
+              on: s.view === w.id,
+              open: () => show(w.id),
+            })),
+          ]}
+          patterns={walk.patterns?.length ?? 0}
+          onPatterns={() => open({ k: 'patterns', id: '' })}
+        />
+        {wf && (
+          <Legend
+            kinds={wf.nodes.map((id) => walk.nodes[id].kind)}
+            edges={wf.edges.map((e) => e.kind)}
+          />
+        )}
         <div id="body">
           <aside id="state">{tracing && <StateColumn trace={trace} tr={s.tr} />}</aside>
           <div id="canvasWrap">
@@ -261,6 +285,11 @@ export function Explorer({
             count={s.hist.length}
             bodyKey={`${s.tab}:${JSON.stringify(cur)}`}
             tab={s.tab}
+            subject={subject}
+            onAsk={(q) => {
+              dispatch({ t: 'tab', tab: 'ask' });
+              asked.ask(q, onScreen());
+            }}
             onGo={(d) => dispatch({ t: 'go', d })}
             onTab={(tab) => dispatch({ t: 'tab', tab })}
             onClose={() => dispatch({ t: 'close' })}

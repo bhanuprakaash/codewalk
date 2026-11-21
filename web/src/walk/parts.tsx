@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useWalk } from './ctx';
-import { kc } from './graph';
+import { BoxIcon } from './icons';
 import type { Err, Go, Why } from './types';
 
 export function Sec({ h, children }: { h: ReactNode; children: ReactNode }) {
@@ -14,20 +14,18 @@ export function Sec({ h, children }: { h: ReactNode; children: ReactNode }) {
 
 export function Chip({
   kind,
-  glyph,
   onClick,
   title,
   children,
 }: {
   kind: string;
-  glyph: string;
   onClick?: () => void;
   title?: string;
   children: ReactNode;
 }) {
   return (
     <span className="chip" onClick={onClick} title={title}>
-      <i style={{ background: kc(kind) }}>{glyph}</i>
+      <BoxIcon kind={kind} size={18} />
       {children}
     </span>
   );

@@ -1,6 +1,5 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import {
-  KIND,
   NH,
   NW,
   bez,
@@ -11,7 +10,6 @@ import {
   type Graph,
   fitLabel,
   isBent,
-  kc,
   lerp,
   neighbourhood,
   pathOf,
@@ -347,7 +345,7 @@ export function Canvas({
                 <g
                   key={id}
                   data-id={id}
-                  className={`node ${n.kind}${sel ? ' sel' : ''}${lit ? ' lit' : ''}`}
+                  className={`node k-${n.kind} ${n.kind}${sel ? ' sel' : ''}${lit ? ' lit' : ''}${marks?.[id]?.state === 'changed' ? ' chg' : ''}`}
                   transform={`translate(${P[id].x},${P[id].y})`}
                   style={{
                     opacity: step ? (inStep ? 1 : 0.35) : !hood || hood.ids.has(id) ? 1 : 0.25,
@@ -361,32 +359,22 @@ export function Canvas({
                   onPointerEnter={() => !dragged.current && setHover(id)}
                   onPointerLeave={() => setHover((h) => (h === id ? null : h))}
                 >
-                  <rect className="box" x={-NW / 2} y={-NH / 2} width={NW} height={NH} rx={12} />
-                  {n.icon ? (
-                    <>
-                      <rect className="ib" x={-NW / 2 + 10} y={-14} width={28} height={28} rx={8} />
-                      <BoxIcon icon={n.icon} kind={n.kind} x={-NW / 2 + 15} y={-9} size={18} />
-                    </>
-                  ) : (
-                    <>
-                      <rect
-                        x={-NW / 2 + 10}
-                        y={-14}
-                        width={28}
-                        height={28}
-                        rx={8}
-                        fill={kc(n.kind)}
-                      />
-                      <text className="gt" x={-NW / 2 + 24} y={4.5} textAnchor="middle">
-                        {KIND[n.kind].g}
-                      </text>
-                    </>
-                  )}
-                  <text className="lb" x={-NW / 2 + 48} y={-3}>
-                    {trunc(n.label, 22)}
+                  {marks?.[id]?.state === 'changed' && <title>changed since you last looked</title>}
+                  <rect
+                    className="ring"
+                    x={-NW / 2 - 2}
+                    y={-NH / 2 - 2}
+                    width={NW + 4}
+                    height={NH + 4}
+                    rx={16}
+                  />
+                  <rect className="box" x={-NW / 2} y={-NH / 2} width={NW} height={NH} rx={14} />
+                  <BoxIcon icon={n.icon} kind={n.kind} x={-NW / 2 + 10} y={-18} size={36} />
+                  <text className="lb" x={-NW / 2 + 55} y={n.sub ? -3 : 5}>
+                    {trunc(n.label, 20)}
                   </text>
-                  <text className="sb" x={-NW / 2 + 48} y={14}>
-                    {trunc(n.sub ?? '', 30)}
+                  <text className="sb" x={-NW / 2 + 55} y={14}>
+                    {trunc(n.sub ?? '', 25)}
                   </text>
                   {exits > 0 && (
                     <text
@@ -410,7 +398,7 @@ export function Canvas({
                       go
                     </text>
                   )}
-                  {marks?.[id] && (
+                  {marks?.[id]?.state === 'removed' && (
                     <circle
                       className={`mark ${marks[id].state}`}
                       cx={-NW / 2 + 4}
@@ -432,19 +420,6 @@ export function Canvas({
                     </text>
                   )}
                   {n.types && <TypeChips types={n.types} onType={onType} />}
-                  {n.kind === 'you' && (
-                    <rect
-                      x={-NW / 2 - 4}
-                      y={-NH / 2 - 4}
-                      width={NW + 8}
-                      height={NH + 8}
-                      rx={15}
-                      fill="none"
-                      stroke="var(--you-soft)"
-                      strokeWidth={6}
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  )}
                 </g>
               );
             })}

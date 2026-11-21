@@ -26,7 +26,6 @@ export function Patterns() {
               <Chip
                 key={s.symbol}
                 kind={walk.types[s.symbol] ? 'type' : 'func'}
-                glyph={walk.types[s.symbol] ? 'T' : 'ƒ'}
                 title={s.symbol}
                 onClick={() => openSymbol(walk, go, s.symbol)}
               >

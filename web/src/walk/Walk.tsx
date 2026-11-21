@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Explorer } from './Explorer';
+import { Notice } from './Header';
 import { loadUser } from './user';
 import type { User, Walk as WalkData } from './types';
 
@@ -38,13 +39,20 @@ export function Walk({
     };
   }, [query]);
 
-  if (!data) return <p className="note">Opening the walk…</p>;
+  if (!data)
+    return (
+      <Notice>
+        <p className="note">Opening the walk…</p>
+      </Notice>
+    );
   if ('error' in data) {
     return (
-      <div className="notice">
-        <h2>Nothing to show yet</h2>
-        <p>{data.error}</p>
-      </div>
+      <Notice>
+        <div className="notice">
+          <h2>Nothing to show yet</h2>
+          <p>{data.error}</p>
+        </div>
+      </Notice>
     );
   }
   return (

@@ -1,4 +1,3 @@
-import { KIND } from './graph';
 import { Chip } from './parts';
 import { Patterns } from './patterns';
 import type { Walk } from './types';
@@ -43,12 +42,7 @@ export function Overview({
             <p>{p.role || p.doc}</p>
             <div className="chips">
               {p.nodes.map((id) => (
-                <Chip
-                  key={id}
-                  kind={walk.nodes[id].kind}
-                  glyph={KIND[walk.nodes[id].kind].g}
-                  onClick={() => onNode(id)}
-                >
+                <Chip key={id} kind={walk.nodes[id].kind} onClick={() => onNode(id)}>
                   {walk.nodes[id].label}
                 </Chip>
               ))}
@@ -67,7 +61,7 @@ export function Overview({
       </div>
       <div className="chips">
         {Object.values(walk.types).map((t) => (
-          <Chip key={t.symbol} kind="type" glyph="T" onClick={() => onType(t.symbol)}>
+          <Chip key={t.symbol} kind="type" onClick={() => onType(t.symbol)}>
             {t.name}
           </Chip>
         ))}

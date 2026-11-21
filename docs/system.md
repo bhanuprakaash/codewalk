@@ -68,7 +68,7 @@ file only when there are no errors. The app serves the built file as written
 
 ## Changes
 
-A package box gets a dot when any file in its package differs between the view's seen commit in
+A package box gets an amber border when any file in its package differs between the view's seen commit in
 the project's `user.json` (default: the commit the view was built from) and the repo's HEAD; its
 card lists the files. The seen commit is `seenSha` for the root view and `seenSha:system:<id>` for
 a child view. "Mark seen" stores HEAD there.
