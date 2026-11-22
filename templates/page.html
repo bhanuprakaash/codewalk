@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page title</title>
+    <style>
+      /* codewalk reading page. Copy this file; keep the style block as it is and write in <body>. */
+      @font-face {
+        font-family: 'Inter Variable';
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(/fonts/inter.woff2) format('woff2');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-weight: 100 800;
+        font-display: swap;
+        src: url(/fonts/jetbrains-mono.woff2) format('woff2');
+      }
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --panel2: #f3f3f5;
+        --line: #ececef;
+        --text: #1d1d1f;
+        --muted: #6e6e73;
+        --faint: #a1a1a6;
+        --focus: #0a6fc2;
+        --focus-soft: rgba(10, 111, 194, 0.08);
+        --k: #8b3fd1;
+        --c: #8f97a3;
+        --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #0e1116;
+        --panel2: #161b22;
+        --line: #262d37;
+        --text: #e6e9ee;
+        --muted: #8b96a5;
+        --faint: #6b7686;
+        --focus: #7cb6ff;
+        --focus-soft: rgba(124, 182, 255, 0.1);
+        --k: #c9a0ff;
+        --c: #66727f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme]) {
+          color-scheme: dark;
+          --bg: #0e1116;
+          --panel2: #161b22;
+          --line: #262d37;
+          --text: #e6e9ee;
+          --muted: #8b96a5;
+          --faint: #6b7686;
+          --focus: #7cb6ff;
+          --focus-soft: rgba(124, 182, 255, 0.1);
+          --k: #c9a0ff;
+          --c: #66727f;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px 96px;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        margin: 6px 0 18px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        margin: 52px 0 14px;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 32px 0 8px;
+      }
+      p,
+      ul,
+      ol {
+        margin: 0 0 18px;
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      a {
+        color: var(--focus);
+        text-decoration: none;
+        border-bottom: 1px solid color-mix(in srgb, var(--focus) 30%, transparent);
+      }
+      a:hover {
+        border-bottom-color: var(--focus);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--panel2);
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+      .where {
+        font-size: 13px;
+        color: var(--muted);
+        letter-spacing: 0.01em;
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.6;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+      .toc {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 20px 6px;
+        margin: 0 0 36px;
+        font-size: 16px;
+      }
+      .toc b {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .toc ol {
+        padding-left: 22px;
+        margin: 0 0 10px;
+      }
+      .toc a {
+        border: 0;
+      }
+      .step {
+        flex: none;
+        display: inline-grid;
+        place-items: center;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 6px;
+        border-radius: 8px;
+        background: var(--focus-soft);
+        color: var(--focus);
+        font-size: 14px;
+        font-weight: 600;
+        transform: translateY(-2px);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.55;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin: 0 0 22px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+      pre .c {
+        color: var(--c);
+      }
+      pre .k {
+        color: var(--k);
+        font-weight: 600;
+      }
+      .note {
+        border-left: 3px solid var(--focus);
+        background: var(--focus-soft);
+        border-radius: 0 10px 10px 0;
+        padding: 12px 16px;
+        margin: 0 0 22px;
+      }
+      .note.aside {
+        border-left-color: var(--faint);
+        background: var(--panel2);
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .note > :last-child {
+        margin-bottom: 0;
+      }
+      .tbl {
+        overflow-x: auto;
+        margin: 0 0 22px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 56px 0 0;
+      }
+      hr + h2 {
+        margin-top: 28px;
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 28px 16px 64px;
+          font-size: 17px;
+        }
+        h1 {
+          font-size: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="where">Subject · Topic</div>
+    <h1>Page title</h1>
+    <p class="lead">Two or three sentences: what this page explains and why it matters.</p>
+
+    <nav class="toc">
+      <b>Contents</b>
+      <ol>
+        <li><a href="#one">First idea</a></li>
+        <li><a href="#two">Second idea</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="one"><span class="step">1</span>First idea</h2>
+    <p>Body text. Link to other pages with relative paths: <a href="other.html">other page</a>.</p>
+    <pre><span class="c"># a comment</span>
+<span class="k">GET</span> user:42   →  hit</pre>
+    <div class="note"><p>The key point of this section.</p></div>
+
+    <h2 id="two"><span class="step">2</span>Second idea</h2>
+    <div class="tbl">
+      <table>
+        <tr>
+          <th>Option</th>
+          <th>Good at</th>
+          <th>Costs</th>
+        </tr>
+        <tr>
+          <td>A</td>
+          <td>…</td>
+          <td>…</td>
+        </tr>
+      </table>
+    </div>
+    <div class="note aside"><p>A caveat or side remark.</p></div>
+
+    <hr />
+    <h2>Summary</h2>
+    <ul>
+      <li>One line per thing to remember.</li>
+    </ul>
+  </body>
+</html>

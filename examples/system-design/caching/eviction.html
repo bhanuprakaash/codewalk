@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Eviction and expiry</title>
+    <style>
+      /* codewalk reading page. Copy this file; keep the style block as it is and write in <body>. */
+      @font-face {
+        font-family: 'Inter Variable';
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(/fonts/inter.woff2) format('woff2');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-weight: 100 800;
+        font-display: swap;
+        src: url(/fonts/jetbrains-mono.woff2) format('woff2');
+      }
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --panel2: #f3f3f5;
+        --line: #ececef;
+        --text: #1d1d1f;
+        --muted: #6e6e73;
+        --faint: #a1a1a6;
+        --focus: #0a6fc2;
+        --focus-soft: rgba(10, 111, 194, 0.08);
+        --k: #8b3fd1;
+        --c: #8f97a3;
+        --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #0e1116;
+        --panel2: #161b22;
+        --line: #262d37;
+        --text: #e6e9ee;
+        --muted: #8b96a5;
+        --faint: #6b7686;
+        --focus: #7cb6ff;
+        --focus-soft: rgba(124, 182, 255, 0.1);
+        --k: #c9a0ff;
+        --c: #66727f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme]) {
+          color-scheme: dark;
+          --bg: #0e1116;
+          --panel2: #161b22;
+          --line: #262d37;
+          --text: #e6e9ee;
+          --muted: #8b96a5;
+          --faint: #6b7686;
+          --focus: #7cb6ff;
+          --focus-soft: rgba(124, 182, 255, 0.1);
+          --k: #c9a0ff;
+          --c: #66727f;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px 96px;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        margin: 6px 0 18px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        margin: 52px 0 14px;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 32px 0 8px;
+      }
+      p,
+      ul,
+      ol {
+        margin: 0 0 18px;
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      a {
+        color: var(--focus);
+        text-decoration: none;
+        border-bottom: 1px solid color-mix(in srgb, var(--focus) 30%, transparent);
+      }
+      a:hover {
+        border-bottom-color: var(--focus);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--panel2);
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+      .where {
+        font-size: 13px;
+        color: var(--muted);
+        letter-spacing: 0.01em;
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.6;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+      .toc {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 20px 6px;
+        margin: 0 0 36px;
+        font-size: 16px;
+      }
+      .toc b {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .toc ol {
+        padding-left: 22px;
+        margin: 0 0 10px;
+      }
+      .toc a {
+        border: 0;
+      }
+      .step {
+        flex: none;
+        display: inline-grid;
+        place-items: center;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 6px;
+        border-radius: 8px;
+        background: var(--focus-soft);
+        color: var(--focus);
+        font-size: 14px;
+        font-weight: 600;
+        transform: translateY(-2px);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.55;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin: 0 0 22px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+      pre .c {
+        color: var(--c);
+      }
+      pre .k {
+        color: var(--k);
+        font-weight: 600;
+      }
+      .note {
+        border-left: 3px solid var(--focus);
+        background: var(--focus-soft);
+        border-radius: 0 10px 10px 0;
+        padding: 12px 16px;
+        margin: 0 0 22px;
+      }
+      .note.aside {
+        border-left-color: var(--faint);
+        background: var(--panel2);
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .note > :last-child {
+        margin-bottom: 0;
+      }
+      .tbl {
+        overflow-x: auto;
+        margin: 0 0 22px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 56px 0 0;
+      }
+      hr + h2 {
+        margin-top: 28px;
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 28px 16px 64px;
+          font-size: 17px;
+        }
+        h1 {
+          font-size: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="where">System design · Caching · Eviction and expiry</div>
+    <h1>Eviction and expiry</h1>
+    <p class="lead">A cache is smaller than the data behind it, and data goes out of date. Two different mechanisms handle this: <b>eviction</b> removes keys because memory is full, and <b>expiry</b> removes keys because their time is up. Back to the <a href="index.html">caching overview</a>.</p>
+
+    <nav class="toc">
+      <b>Contents</b>
+      <ol>
+        <li><a href="#policies">Eviction policies</a></li>
+        <li><a href="#lru">LRU, worked example</a></li>
+        <li><a href="#ttl">TTL and expiry</a></li>
+        <li><a href="#redis">Redis settings</a></li>
+        <li><a href="#jitter">Jitter</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="policies"><span class="step">1</span>Eviction policies</h2>
+    <p>When the cache is full and a new key arrives, something has to go. The policy decides what.</p>
+    <div class="tbl">
+      <table>
+        <tr><th>Policy</th><th>Evicts</th><th>Good at</th><th>Weak at</th></tr>
+        <tr><td><b>LRU</b> least recently used</td><td>The key untouched longest</td><td>Most workloads; recent use predicts near-future use</td><td>A one-time scan of many keys pushes out the hot ones</td></tr>
+        <tr><td><b>LFU</b> least frequently used</td><td>The key with the fewest accesses</td><td>Stable popularity, scan resistance</td><td>Old popular keys linger unless counts decay</td></tr>
+        <tr><td><b>FIFO</b></td><td>The oldest inserted key</td><td>Simplicity</td><td>Ignores use; can evict the hottest key</td></tr>
+        <tr><td><b>Random</b></td><td>Any key</td><td>Almost no bookkeeping</td><td>No intelligence at all</td></tr>
+      </table>
+    </div>
+
+    <h2 id="lru"><span class="step">2</span>LRU, worked example</h2>
+    <p>A cache with 3 slots and the access sequence <code>A B C A D B</code>. The list is ordered most recent first; the last item is next to be evicted.</p>
+    <pre>access  result            cache (most recent → least recent)
+  A     miss              [A]
+  B     miss              [B A]
+  C     miss              [C B A]          <span class="c"># full</span>
+  A     hit               [A C B]          <span class="c"># A moves to the front</span>
+  D     miss, evict B     [D A C]          <span class="c"># B was least recent</span>
+  B     miss, evict C     [B D A]          <span class="c"># C was least recent</span></pre>
+    <p>1 hit in 6 accesses. A was saved because it was touched again before D arrived. With FIFO, the fourth access would not have protected A, and D would have evicted A instead of B.</p>
+    <div class="note"><p>Eviction can remove a key that is still valid. A later request for it is simply a miss. An evicted key and an expired key look identical to the reader.</p></div>
+
+    <h2 id="ttl"><span class="step">3</span>TTL and expiry</h2>
+    <p>A TTL (time to live) is a per-key deadline: <code>SET key value EX 300</code> or <code>EXPIRE key 300</code>. After it passes, the key must no longer be returned. It bounds staleness and clears out data nobody asks for.</p>
+    <p>Scanning every key every second would be too expensive, so Redis combines two strategies:</p>
+    <ul>
+      <li><b>Lazy expiry:</b> when a key is accessed, Redis checks its deadline first and deletes it if it has passed. A reader never sees an expired key.</li>
+      <li><b>Active expiry:</b> several times per second Redis samples a batch of keys that have a TTL, deletes the expired ones, and repeats if a large share of the sample was expired.</li>
+    </ul>
+    <pre>every ~100 ms:
+  pick 20 random keys with a TTL
+  delete the expired ones
+  <span class="k">if</span> more than 25% were expired: repeat   <span class="c"># bounded by a time budget</span></pre>
+    <p>Lazy expiry alone would leak memory from keys never read again; active expiry alone could leave expired keys visible between sweeps. Together they are cheap and correct from the reader's view, though expired keys can occupy memory for a while.</p>
+
+    <h2 id="redis"><span class="step">4</span>Redis settings</h2>
+    <p>Eviction only starts when memory reaches <code>maxmemory</code>. The <code>maxmemory-policy</code> setting picks the rule:</p>
+    <div class="tbl">
+      <table>
+        <tr><th>Policy</th><th>Candidates</th><th>Rule</th></tr>
+        <tr><td><code>noeviction</code></td><td>none</td><td>Writes that need memory fail with an error; reads still work. The default.</td></tr>
+        <tr><td><code>allkeys-lru</code></td><td>all keys</td><td>Evict the least recently used. The usual choice for a pure cache.</td></tr>
+        <tr><td><code>allkeys-lfu</code></td><td>all keys</td><td>Evict the least frequently used.</td></tr>
+        <tr><td><code>allkeys-random</code></td><td>all keys</td><td>Evict a random key.</td></tr>
+        <tr><td><code>volatile-lru</code></td><td>keys with a TTL</td><td>Least recently used among keys that have an expiry.</td></tr>
+        <tr><td><code>volatile-lfu</code></td><td>keys with a TTL</td><td>Least frequently used among keys that have an expiry.</td></tr>
+        <tr><td><code>volatile-random</code></td><td>keys with a TTL</td><td>Random among keys that have an expiry.</td></tr>
+        <tr><td><code>volatile-ttl</code></td><td>keys with a TTL</td><td>Evict the key with the shortest remaining TTL.</td></tr>
+      </table>
+    </div>
+    <p>The <code>volatile-*</code> policies never touch keys without a TTL. If none are eligible, they behave like <code>noeviction</code> and writes fail. Use them when the same Redis holds both cache entries (with TTLs) and data that must stay (without).</p>
+    <p><b>Redis LRU is approximate.</b> A true LRU needs a linked list updated on every read, which is costly. Instead Redis keeps a small last-access clock on each key and, when it must evict, samples a few random keys and removes the one idle longest. <code>maxmemory-samples</code> sets the sample size; the default is 5, 10 is closer to true LRU, and higher costs more CPU. LFU is also approximate: it keeps a small logarithmic counter that decays over time, tunable with <code>lfu-log-factor</code> and <code>lfu-decay-time</code>.</p>
+    <pre><span class="c"># redis.conf</span>
+<span class="k">maxmemory</span> 4gb
+<span class="k">maxmemory-policy</span> allkeys-lru
+<span class="k">maxmemory-samples</span> 10
+
+<span class="c"># watch it</span>
+INFO stats      <span class="c"># evicted_keys, expired_keys, keyspace_hits, keyspace_misses</span></pre>
+    <div class="note aside"><p>The map's last flow, "Cache full · LRU eviction", plays this on a 3-key cache so you can see which key goes and why.</p></div>
+
+    <h2 id="jitter"><span class="step">5</span>Jitter</h2>
+    <p>If a thousand keys are loaded together with the same 300 s TTL, they all expire together, and the database takes a thousand misses in the same moment. This happens after a deploy, a cache restart or a bulk load. The fix is to randomize the TTL a little:</p>
+    <pre>ttl = 300 + random(0, 60)       <span class="c"># spread expiry across a minute</span>
+SET user:42 val EX <span class="k">ttl</span></pre>
+    <p>Jitter spreads many keys. For one very hot key you also need a lock or single-flight on refill, as in the stampede flow on the map.</p>
+
+    <hr />
+    <h2>Summary</h2>
+    <ul>
+      <li>Eviction is for memory pressure; expiry is for time. Both look like a miss to the reader.</li>
+      <li>LRU is the sensible default; LFU resists scans; FIFO and random are cheap and blunt.</li>
+      <li>Redis expires keys lazily on access and by periodic sampling.</li>
+      <li>Pure cache: <code>allkeys-lru</code> with a sized <code>maxmemory</code>. Mixed data: a <code>volatile-*</code> policy.</li>
+      <li>Redis LRU samples keys, so it is approximate; raise <code>maxmemory-samples</code> for accuracy.</li>
+      <li>Add TTL jitter so keys do not expire together. Back to the <a href="index.html">overview</a>.</li>
+    </ul>
+  </body>
+</html>

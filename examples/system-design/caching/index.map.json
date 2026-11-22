@@ -1,0 +1,314 @@
+{
+  "title": "Caching with Redis",
+  "summary": "A cache-aside setup: the app asks Redis first and falls back to Postgres. Play the flows to see a hit, a miss, a write, a stampede, a stale read, a Redis outage and an eviction. Latencies are in-datacenter figures; the client hop is counted as in-DC too, to keep totals comparable.",
+  "nodes": [
+    { "id": "client", "kind": "client", "label": "Client", "sub": "browser / mobile", "pos": [0, 0.7],
+      "what": "Sends HTTP requests such as GET /users/42 and PUT /users/42.",
+      "why": "The thing the whole system is tuned for: users feel the latency of every request.",
+      "gotcha": "Clients also cache (browser cache, HTTP Cache-Control). That is a separate layer with its own staleness." },
+    { "id": "app", "kind": "service", "label": "App server", "sub": "stateless", "pos": [1, 0.7],
+      "what": "Runs the cache-aside logic: check Redis, on a miss read Postgres and fill Redis, on a write update Postgres and delete the key.",
+      "why": "The app owns the caching policy because it knows how to build, serialize and key the data. Redis only stores what it is handed.",
+      "gotcha": "Every caller must follow the same pattern and the same key names. One code path that writes to the DB without deleting the key leaves stale data.",
+      "pros": ["Simple to reason about", "Cache failure degrades instead of breaking reads"],
+      "cons": ["Caching logic lives in application code", "A miss costs three round trips (GET, SELECT, SET)"] },
+    { "id": "cache", "kind": "cache", "label": "Redis", "sub": "in-memory · TTL · LRU", "pos": [2, 0], "link": "eviction.html",
+      "what": "An in-memory key-value store. Reads cost about 0.2 to 0.5 ms round trip in the same datacenter, with the lookup itself well under a millisecond.",
+      "why": "Memory is roughly 100x to 1000x faster than a database query and takes read load off Postgres.",
+      "gotcha": "It is a copy, not the truth. Memory is finite (maxmemory), so keys are evicted, and keys expire (TTL), so a missing key never means the data does not exist.",
+      "pros": ["Sub-millisecond reads", "Shared by every app server", "TTL and eviction built in"],
+      "cons": ["Can be stale", "Extra system to run and monitor", "Cold after a restart"],
+      "body": "<p>Click the box to read how <code>maxmemory-policy</code> and TTL expiry decide what stays.</p>" },
+    { "id": "db", "kind": "db", "label": "Postgres", "sub": "source of truth", "pos": [2, 1.4],
+      "what": "Holds the durable data. A primary-key lookup with a warm buffer pool takes about 1 to 5 ms; a cold or contended query takes 10 ms or more.",
+      "why": "The only place a write is truly safe. Everything else can be rebuilt from here.",
+      "gotcha": "It has a connection and CPU ceiling. A cache outage or stampede shifts the full read load here and can take it down.",
+      "pros": ["Durable", "Transactions and a single version of the truth"],
+      "cons": ["Slow compared to memory", "Hard to scale reads without replicas"] },
+    { "id": "queue", "kind": "queue", "label": "Change stream", "sub": "CDC / outbox", "pos": [3, 1.4],
+      "what": "Carries a message for every committed row change (change data capture from the write-ahead log, or an outbox table).",
+      "why": "Lets invalidation happen after commit and be retried, instead of depending on the app's one DEL.",
+      "gotcha": "Delivery is at-least-once and slightly delayed (tens to hundreds of ms). Deleting a key twice is harmless; that is why DEL suits it.",
+      "pros": ["Decouples writers from the cache", "Retries until the DEL succeeds"],
+      "cons": ["More infrastructure", "A short window of staleness remains"] },
+    { "id": "worker", "kind": "worker", "label": "Invalidator", "sub": "consumes changes", "pos": [3, 0],
+      "what": "Reads change messages and deletes the matching cache keys.",
+      "why": "Moves cache invalidation out of the request path, so a slow or failed Redis does not fail a write.",
+      "gotcha": "Messages for the same row must be handled in order, or a late DEL can race a refill the same way a reader can." }
+  ],
+  "edges": [
+    { "from": "client", "to": "app", "kind": "call", "label": "GET /users/42", "proto": "HTTP", "what": "The user request and its response." },
+    { "from": "app", "to": "cache", "kind": "call", "label": "GET / SET / DEL", "proto": "RESP", "what": "Cache commands. RESP is the Redis wire protocol; each command is one round trip, about 0.2 to 0.5 ms in the same datacenter." },
+    { "from": "app", "to": "db", "kind": "call", "label": "SELECT / UPDATE", "proto": "SQL", "what": "Reads on a miss, and every write." },
+    { "from": "db", "to": "queue", "kind": "go", "label": "row change event", "proto": "CDC", "what": "Committed changes published asynchronously; nobody waits for them." },
+    { "from": "queue", "to": "worker", "kind": "go", "label": "consume", "proto": "AMQP", "what": "The invalidator pulls events from the stream." },
+    { "from": "worker", "to": "cache", "kind": "call", "label": "DEL user:42", "proto": "RESP", "what": "Invalidation driven by the database's own change log." }
+  ],
+  "flows": [
+    {
+      "id": "read-hit",
+      "title": "Read · cache hit",
+      "summary": "The key is in Redis. The app never touches Postgres: about 1 ms end to end.",
+      "steps": [
+        { "at": "client->app", "title": "Request arrives", "does": "The client asks for user 42. The app derives the cache key user:42 from the URL.", "carries": "GET /users/42", "ms": 0.2,
+          "state": [
+            { "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "TTL 212 s left" },
+            { "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "same data, source of truth" } ] },
+        { "at": "app->cache", "title": "App asks Redis first", "does": "One command on a pooled connection. No SQL, no disk.", "carries": "GET user:42", "ms": 0.2,
+          "values": [{ "name": "command", "value": "GET user:42" }] },
+        { "at": "cache", "title": "Redis looks the key up", "does": "A hash table lookup in memory, plus a TTL check. The key exists and has not expired.", "ms": 0.05, "tag": "HIT", "tone": "ok",
+          "note": "The lookup is microseconds. The cost you pay is the network round trip, not the memory access.",
+          "state": [{ "of": "cache", "name": "stats", "value": { "keyspace_hits": 9501, "keyspace_misses": 499 }, "note": "hit ratio 95.0%" }] },
+        { "at": "app->cache", "back": true, "title": "Value returns", "does": "Redis sends the serialized value back.", "carries": "{id:42, name:Ada, ...}", "ms": 0.2, "tag": "HIT", "tone": "ok",
+          "values": [{ "name": "reply", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 } }] },
+        { "at": "app", "title": "App builds the response", "does": "Deserialize the JSON and write the HTTP response. Postgres was never involved.", "ms": 0.1 },
+        { "at": "client->app", "back": true, "title": "Response to the client", "does": "200 OK with the user.", "carries": "200 OK", "ms": 0.2, "tag": "HIT", "tone": "ok",
+          "note": "Total about 0.95 ms, versus about 14 ms for the miss path. At a 95% hit ratio the database sees only 1 request in 20." }
+      ]
+    },
+    {
+      "id": "read-miss",
+      "title": "Read · cache miss",
+      "summary": "The key is absent. The app reads Postgres, fills Redis with a TTL, and replies. About 14 ms, roughly 15x slower than a hit.",
+      "steps": [
+        { "at": "client->app", "title": "Request arrives", "does": "Same request as before, but nobody has read user 42 for a while.", "carries": "GET /users/42", "ms": 0.2,
+          "state": [
+            { "of": "cache", "name": "user:42", "value": "absent", "note": "expired 2 s ago" },
+            { "of": "cache", "name": "stats", "value": { "keyspace_hits": 9500, "keyspace_misses": 499 } },
+            { "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 } } ] },
+        { "at": "app->cache", "title": "App asks Redis first", "does": "Always the same first move, hit or miss.", "carries": "GET user:42", "ms": 0.2 },
+        { "at": "app->cache", "back": true, "title": "Redis has nothing", "does": "The key does not exist. Redis answers with a nil reply.", "carries": "(nil)", "ms": 0.25, "tag": "MISS", "tone": "warn",
+          "values": [{ "name": "reply", "value": null }],
+          "note": "A miss is not an error. Redis cannot tell whether the key expired, was evicted or never existed.",
+          "state": [{ "of": "cache", "name": "stats", "value": { "keyspace_hits": 9500, "keyspace_misses": 500 }, "note": "hit ratio 95.0%" }] },
+        { "at": "app->db", "title": "Fall back to Postgres", "does": "The app runs the real query on the source of truth.", "carries": "SELECT * FROM users WHERE id = 42", "ms": 0.3,
+          "values": [{ "name": "sql", "value": "SELECT * FROM users WHERE id = 42" }] },
+        { "at": "db", "title": "Postgres executes the query", "does": "Primary-key index lookup, heap fetch, possibly a buffer pool miss that goes to SSD. Plan, parse and commit overheads add up.", "ms": 12, "tag": "slow", "tone": "warn",
+          "note": "This is the work the cache exists to avoid. 12 ms here is a busy but healthy database." },
+        { "at": "app->db", "back": true, "title": "Row comes back", "does": "One row, version 7.", "carries": "row v7", "ms": 0.3,
+          "values": [{ "name": "row", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 } }] },
+        { "at": "app->cache", "title": "Fill the cache with a TTL", "does": "SET with EX makes the write and the expiry one atomic command. Without a TTL the key could live forever and go stale forever.", "carries": "SET user:42 {...} EX 300", "ms": 0.3, "tag": "fill", "tone": "info",
+          "values": [{ "name": "command", "value": "SET user:42 '{\"id\":42,\"name\":\"Ada\",\"plan\":\"pro\",\"version\":7}' EX 300" }],
+          "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "TTL 300 s" }] },
+        { "at": "app->cache", "back": true, "title": "Redis confirms", "does": "OK. The app does not need to wait for this to answer the user, but most clients do.", "carries": "+OK", "ms": 0.2 },
+        { "at": "app", "title": "App builds the response", "does": "Serialize and write the HTTP response.", "ms": 0.3 },
+        { "at": "client->app", "back": true, "title": "Response to the client", "does": "200 OK with the user.", "carries": "200 OK", "ms": 0.2, "tag": "MISS", "tone": "warn",
+          "note": "Total about 14.25 ms. The next reader of user:42 pays only about 1 ms." }
+      ],
+      "whatifs": [
+        {
+          "id": "stampede",
+          "title": "a hot key expires under load (stampede)",
+          "summary": "Many requests miss at the same instant and all go to Postgres.",
+          "fork": 1,
+          "steps": [
+            { "at": "cache", "title": "A hot key expires", "does": "user:42 serves 2,000 reads per second. Its TTL runs out. For the next 12 ms, the time one query takes to refill it, every request misses.", "tag": "expired", "tone": "warn",
+              "state": [{ "of": "cache", "name": "user:42", "value": "absent", "note": "TTL elapsed" }] },
+            { "at": "app->cache", "back": true, "title": "Everyone misses", "does": "In the next 12 ms about 24 requests arrive, on many app servers. Each runs GET, gets nil, and decides to refill the cache.", "carries": "(nil) x 24", "ms": 0.25, "tag": "MISS", "tone": "warn",
+              "values": [{ "name": "concurrent misses", "value": 24 }] },
+            { "at": "app->db", "title": "All of them query Postgres", "does": "Identical SELECTs, 24 at once. Each one is wasted work, because only one result is needed.", "carries": "SELECT x 24", "ms": 0.3, "tag": "herd", "tone": "bad",
+              "state": [{ "of": "db", "name": "active queries", "value": 24, "note": "normally 1 to 2 for this key" }] },
+            { "at": "db", "title": "Database queues up", "does": "A burst of identical queries competes for CPU and connections. Latency climbs, and slow queries make more requests miss while waiting.", "ms": 180, "tag": "overload", "tone": "bad",
+              "state": [{ "of": "db", "name": "p99 query time", "value": "180 ms", "note": "normally 12 ms" }],
+              "note": "One hot key becomes a database outage. This is a cache stampede or thundering herd. It gets worse with more traffic and slower queries." },
+            { "at": "app->cache", "title": "Everyone writes the same value", "does": "Each request finishes and issues the same SET. 24 redundant writes, all with the same TTL, so they expire together again.", "carries": "SET user:42 x 24", "ms": 0.3,
+              "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "TTL 300 s, will expire in sync again" }] }
+          ]
+        },
+        {
+          "id": "single-flight",
+          "title": "the fix: one request refills, the rest wait",
+          "summary": "A short lock lets only one request hit Postgres.",
+          "fork": 1,
+          "steps": [
+            { "at": "app->cache", "back": true, "title": "Everyone misses, as before", "does": "The key expired and 24 requests arrive. This time each one tries to take a lock before touching the database.", "carries": "(nil) x 24", "ms": 0.25, "tag": "MISS", "tone": "warn",
+              "state": [{ "of": "cache", "name": "user:42", "value": "absent", "note": "TTL elapsed" }] },
+            { "at": "app->cache", "title": "Try to take the lock", "does": "SET with NX only succeeds if the key does not exist, and PX gives it a timeout so a crashed holder cannot block forever. The value is a random token that identifies the owner.", "carries": "SET lock:user:42 tok NX PX 5000", "ms": 0.3, "tag": "lock", "tone": "info",
+              "values": [{ "name": "command", "value": "SET lock:user:42 9f3a NX PX 5000" }],
+              "state": [{ "of": "cache", "name": "lock:user:42", "value": "9f3a", "note": "TTL 5000 ms, held by one request" }] },
+            { "at": "app->cache", "back": true, "title": "One wins, 23 lose", "does": "The winner gets OK. The other 23 get nil from SET NX. They do not query the database; they wait about 50 ms and read the cache again, or serve a stale copy if you keep one.", "carries": "+OK / (nil) x 23", "ms": 0.25, "tag": "1 of 24", "tone": "ok",
+              "values": [{ "name": "winner", "value": 1 }, { "name": "waiting", "value": 23 }] },
+            { "at": "app->db", "title": "Only the winner queries Postgres", "does": "One SELECT instead of 24.", "carries": "SELECT x 1", "ms": 0.3,
+              "state": [{ "of": "db", "name": "active queries", "value": 1 }] },
+            { "at": "db", "title": "Database stays calm", "does": "A single normal-cost query.", "ms": 12, "tone": "ok" },
+            { "at": "app->cache", "title": "Winner fills the cache and releases the lock", "does": "SET the value with TTL 300 plus a few seconds of random jitter, then delete the lock only if the token still matches (a small Lua script), so a slow holder never deletes someone else's lock.", "carries": "SET user:42 EX 307; DEL lock", "ms": 0.5, "tag": "fill", "tone": "ok",
+              "state": [
+                { "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "TTL 300 s + 7 s jitter" },
+                { "of": "cache", "name": "lock:user:42", "value": null } ] },
+            { "at": "app->cache", "back": true, "title": "Waiters retry and hit", "does": "The 23 waiting requests read the cache again and find the value.", "carries": "HIT x 23", "ms": 0.2, "tag": "HIT", "tone": "ok",
+              "note": "Other defenses: request coalescing inside one app process (single-flight per key), jitter on TTLs so keys do not expire together, and early probabilistic refresh, where a reader refreshes a key slightly before its TTL ends with rising probability." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "write-invalidate",
+      "title": "Write · update DB, delete key",
+      "summary": "Write to Postgres first, then DELETE the cache key. The next read refills it. Delete, not update, because a delete can never leave a wrong value behind.",
+      "steps": [
+        { "at": "client->app", "title": "Write arrives", "does": "The client changes the user's plan from pro to team.", "carries": "PUT /users/42 {plan: team}", "ms": 0.2,
+          "state": [
+            { "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "TTL 180 s left" },
+            { "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 } } ] },
+        { "at": "app->db", "title": "Update the source of truth first", "does": "The write goes to Postgres inside a transaction. Until it commits, no one else can see it.", "carries": "UPDATE users SET plan='team', version=8 WHERE id=42", "ms": 0.3,
+          "values": [{ "name": "sql", "value": "UPDATE users SET plan = 'team', version = 8 WHERE id = 42" }] },
+        { "at": "db", "title": "Commit", "does": "The row is written and flushed to the write-ahead log. After this the change is durable.", "ms": 3,
+          "note": "Cache and DB now disagree: Redis still says pro. This is the stale window, and it lasts until the next step.",
+          "state": [{ "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "team", "version": 8 }, "note": "committed" }] },
+        { "at": "app->db", "back": true, "title": "Postgres confirms", "does": "1 row updated.", "carries": "UPDATE 1", "ms": 0.3 },
+        { "at": "app->cache", "title": "Delete the cache key", "does": "DEL removes the stale copy. The app does not write the new value here; the next reader will load it from the database.", "carries": "DEL user:42", "ms": 0.3, "tag": "invalidate", "tone": "info",
+          "values": [{ "name": "command", "value": "DEL user:42" }],
+          "note": "Deleting is idempotent and safe to repeat. Setting the new value instead risks overwriting a newer one if two writers interleave; a delete just forces a fresh read." },
+        { "at": "cache", "title": "Key removed", "does": "Redis frees the entry.", "ms": 0.05,
+          "state": [{ "of": "cache", "name": "user:42", "value": null }] },
+        { "at": "app->cache", "back": true, "title": "Redis confirms", "does": "The reply is the number of keys deleted.", "carries": ":1", "ms": 0.2 },
+        { "at": "client->app", "back": true, "title": "Write succeeds", "does": "200 OK. The write path costs one DB write plus one DEL.", "carries": "200 OK", "ms": 0.2 },
+        { "at": "app", "title": "Next read repopulates", "does": "The next GET /users/42 misses, reads version 8 from Postgres and runs SET EX 300, exactly like the read-miss flow.", "ms": 13, "tag": "refill", "tone": "info",
+          "values": [{ "name": "cached value", "value": { "id": 42, "name": "Ada", "plan": "team", "version": 8 } }],
+          "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "team", "version": 8 }, "note": "TTL 300 s" }],
+          "note": "The first reader after a write pays the miss. Hot keys that are written often have poor hit ratios; consider not caching them." }
+      ],
+      "whatifs": [
+        {
+          "id": "stale-read",
+          "title": "a slow reader refills with an old value",
+          "summary": "A read and a write interleave so the cache ends up holding version 7 after the delete.",
+          "fork": 0,
+          "steps": [
+            { "at": "cache", "title": "Key is absent", "does": "user:42 just expired. A reader and a writer arrive at nearly the same time.", "tag": "race", "tone": "warn",
+              "state": [{ "of": "cache", "name": "user:42", "value": null, "note": "expired" }] },
+            { "at": "app->cache", "back": true, "title": "Reader A misses", "does": "Reader A runs GET and gets nil.", "carries": "(nil)", "ms": 0.25, "tag": "MISS", "tone": "warn" },
+            { "at": "app->db", "back": true, "title": "Reader A reads the old row", "does": "A's SELECT runs just before the writer commits, so it sees version 7. Then A stalls briefly, for example on a GC pause or a slow network hop.", "carries": "row v7", "ms": 1,
+              "values": [{ "name": "A holds", "value": { "id": 42, "plan": "pro", "version": 7 } }] },
+            { "at": "db", "title": "Writer B commits version 8", "does": "Writer B updates and commits while A is stalled.", "ms": 3,
+              "state": [{ "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "team", "version": 8 } }] },
+            { "at": "app->cache", "title": "B deletes the key, finds nothing", "does": "B's DEL runs before A has written anything, so there is nothing to delete.", "carries": "DEL user:42 -> 0", "ms": 0.3,
+              "note": "The invalidation already happened. It cannot clean up what A is about to write." },
+            { "at": "app->cache", "title": "A fills the cache with version 7", "does": "A finally runs its SET with the value it read earlier.", "carries": "SET user:42 {v7} EX 300", "ms": 0.3, "tag": "STALE", "tone": "bad",
+              "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "STALE. DB has v8. Lives until TTL, 300 s" }] },
+            { "at": "cache", "title": "Everyone now reads stale data", "does": "Every reader hits the cache and gets plan pro. The hit ratio looks perfect while the data is wrong.", "tag": "STALE", "tone": "bad",
+              "note": "The TTL is the safety net: it bounds the wrongness to 300 s. This race is rare, because it needs a reader slower than a write, but at scale it will happen." },
+            { "at": "app->cache", "title": "Fix 1: delayed double delete", "does": "After the write, the writer deletes the key again after a short delay (for example 500 ms, longer than a slow read). That second DEL removes a stale refill.", "carries": "DEL user:42 (after 500 ms)", "ms": 0.3, "tag": "fix", "tone": "ok",
+              "state": [{ "of": "cache", "name": "user:42", "value": null, "note": "second delete cleared the stale v7" }] },
+            { "at": "app", "title": "Fix 2: versioned values", "does": "Store the row version in the value and refill with a compare-and-set (a Lua script or WATCH/MULTI): only write if the new version is higher than the cached one. A stale v7 can never overwrite v8. Fix 3, driven by CDC, is in the next what-if.", "tag": "fix", "tone": "ok" }
+          ]
+        },
+        {
+          "id": "delete-fails",
+          "title": "the DEL fails",
+          "summary": "Postgres committed, but the app could not delete the key.",
+          "fork": 3,
+          "steps": [
+            { "at": "app->cache", "title": "DEL times out", "does": "Redis is slow or a network blip drops the command. The app has already committed to Postgres.", "carries": "DEL user:42 (timeout)", "ms": 50, "tag": "FAILED", "tone": "bad",
+              "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "STALE. DB has v8. TTL 180 s left" }] },
+            { "at": "client->app", "back": true, "title": "The write still succeeds", "does": "The DB is the truth and it is updated, so the app returns 200. Failing the write would only add inconsistency.", "carries": "200 OK", "ms": 0.2 },
+            { "at": "cache", "title": "Readers see old data", "does": "Every read hits version 7 until the TTL expires. Nothing else repairs it.", "tag": "STALE", "tone": "bad",
+              "note": "This is why every key needs a TTL. A key without one stays wrong until someone notices." },
+            { "at": "app", "title": "Retry the invalidation", "does": "Retry the DEL with backoff, or write an outbox row in the same DB transaction so a worker retries until it succeeds. CDC (next what-if) does this for you.", "tag": "fix", "tone": "ok" }
+          ]
+        },
+        {
+          "id": "delete-first",
+          "title": "delete first, then update (wrong order)",
+          "summary": "Deleting before the DB write lets a concurrent reader refill the old value.",
+          "fork": 0,
+          "steps": [
+            { "at": "app->cache", "title": "Writer deletes the key first", "does": "The writer removes the key before touching Postgres, thinking it is cleaning up in advance.", "carries": "DEL user:42", "ms": 0.3,
+              "state": [{ "of": "cache", "name": "user:42", "value": null }] },
+            { "at": "app->cache", "back": true, "title": "A reader misses", "does": "A concurrent reader finds the key gone.", "carries": "(nil)", "ms": 0.25, "tag": "MISS", "tone": "warn" },
+            { "at": "app->db", "back": true, "title": "The reader reads the old row", "does": "The writer has not committed yet, so the reader gets version 7.", "carries": "row v7", "ms": 1 },
+            { "at": "app->cache", "title": "The reader refills the cache with v7", "does": "SET user:42 with the old value and a fresh TTL.", "carries": "SET user:42 {v7} EX 300", "ms": 0.3, "tag": "STALE", "tone": "bad",
+              "state": [{ "of": "cache", "name": "user:42", "value": { "id": 42, "name": "Ada", "plan": "pro", "version": 7 }, "note": "refilled with the old value" }] },
+            { "at": "db", "title": "The writer commits version 8", "does": "Now the DB has v8 and the cache has v7, with nothing left to delete the key.", "ms": 3, "tag": "STALE", "tone": "bad",
+              "state": [{ "of": "db", "name": "users#42", "value": { "id": 42, "name": "Ada", "plan": "team", "version": 8 } }],
+              "note": "The order is DB first, then delete. With the correct order, the reader's window is far smaller and the TTL covers the rest." }
+          ]
+        },
+        {
+          "id": "cdc",
+          "title": "invalidate from the change log (CDC)",
+          "summary": "The app only writes to Postgres. A worker deletes the key from the database's own change stream.",
+          "fork": 3,
+          "steps": [
+            { "at": "client->app", "back": true, "title": "App answers right away", "does": "The app does not touch Redis on the write path. It returns once Postgres has committed.", "carries": "200 OK", "ms": 0.2 },
+            { "at": "db->queue", "title": "Postgres emits a change event", "does": "The write-ahead log is read by a CDC connector (for example Debezium), or an outbox row is published. The event says table users, id 42, version 8.", "carries": "users#42 v8", "ms": 20, "tag": "async", "tone": "info",
+              "values": [{ "name": "event", "value": { "table": "users", "id": 42, "version": 8 } }],
+              "state": [{ "of": "queue", "name": "users-changes", "value": { "id": 42, "version": 8 }, "note": "1 message waiting" }] },
+            { "at": "queue->worker", "title": "Invalidator consumes it", "does": "At-least-once delivery. If the worker crashes before acking, the message is delivered again.", "carries": "users#42 v8", "ms": 5,
+              "state": [{ "of": "queue", "name": "users-changes", "value": null }] },
+            { "at": "worker->cache", "title": "Worker deletes the key", "does": "DEL is idempotent, so redelivery is harmless. If Redis is down, the worker retries until it is back.", "carries": "DEL user:42", "ms": 0.3, "tag": "invalidate", "tone": "ok",
+              "state": [{ "of": "cache", "name": "user:42", "value": null }],
+              "note": "Invalidation is driven by committed data, so no code path can forget it, and it is retried. The cost is a short delay, here about 25 ms, and extra infrastructure. It still needs a TTL as a backstop." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cache-down",
+      "title": "Redis is down",
+      "summary": "The cache node dies. The app must fail fast and fall back to Postgres. Reads keep working, but database load jumps 20x.",
+      "steps": [
+        { "at": "client->app", "title": "Normal traffic arrives", "does": "10,000 requests per second, 95% served by Redis, so Postgres sees about 500 queries per second.", "carries": "GET /users/42", "ms": 0.2,
+          "state": [
+            { "of": "db", "name": "queries/s", "value": 500, "note": "normal: 5% of 10,000 req/s" },
+            { "of": "db", "name": "p99 query time", "value": "12 ms" },
+            { "of": "cache", "name": "status", "value": "up", "note": "hit ratio 95%" } ] },
+        { "at": "cache", "title": "Redis becomes unreachable", "does": "The node crashes, restarts empty, or the network drops. No replies come back.", "tag": "DOWN", "tone": "bad",
+          "state": [{ "of": "cache", "name": "status", "value": "unreachable", "note": "all keys lost if it was a crash without persistence" }] },
+        { "at": "app->cache", "title": "GET times out", "does": "The app waits for a reply. With a tight timeout (20 to 50 ms) a failing call is cheap. With the default of several seconds, threads pile up and the app falls over too.", "carries": "GET user:42 (timeout)", "ms": 50, "tag": "TIMEOUT", "tone": "bad",
+          "note": "Set connect and read timeouts explicitly. A hung dependency is worse than a dead one." },
+        { "at": "app", "title": "Circuit breaker opens", "does": "After several failures in a row the app stops calling Redis for about 10 seconds, then lets a single probe through. Later requests skip the 50 ms wait entirely.", "tag": "breaker open", "tone": "warn",
+          "state": [{ "of": "app", "name": "redis circuit breaker", "value": "open", "note": "probe again in 10 s" }] },
+        { "at": "app->db", "title": "Fall back to Postgres", "does": "Treat the cache error as a miss and read the source of truth. The app stays correct, only slower.", "carries": "SELECT * FROM users WHERE id = 42", "ms": 0.3, "tag": "fallback", "tone": "warn" },
+        { "at": "db", "title": "Database absorbs everything", "does": "Every request now runs SQL. Under the higher load queries run slower.", "ms": 20, "tag": "overload", "tone": "bad",
+          "state": [
+            { "of": "db", "name": "queries/s", "value": 10000, "note": "20x normal" },
+            { "of": "db", "name": "p99 query time", "value": "180 ms", "note": "was 12 ms" },
+            { "of": "db", "name": "connections", "value": "480 / 500", "note": "pool nearly exhausted" } ],
+          "note": "The cache was not only an optimization; the database was sized assuming 95% of reads never reach it." },
+        { "at": "app->db", "back": true, "title": "Rows come back, slowly", "does": "Responses still arrive but at several times the normal latency. Slow responses tie up connections, which slows everyone further.", "carries": "row v7", "ms": 0.3 },
+        { "at": "client->app", "back": true, "title": "Users still get answers", "does": "Degraded but working.", "carries": "200 OK", "ms": 0.2, "tag": "DEGRADED", "tone": "warn",
+          "note": "If the DB tips over the whole site goes down, and restarting Redis empty makes it worse. Defenses: load shedding or rate limiting, a small in-process cache of the hottest keys, replicas or Redis Cluster so a node failure loses only a slice of keys, and persistence or a warm standby." },
+        { "at": "cache", "title": "Redis returns, cold", "does": "It is back but empty. The breaker probes, succeeds and closes, and every request now misses and refills, which hammers the DB again for a while.", "tag": "cold", "tone": "warn",
+          "state": [
+            { "of": "cache", "name": "status", "value": "up, empty", "note": "hit ratio 0% and climbing" },
+            { "of": "app", "name": "redis circuit breaker", "value": "closed" } ],
+          "note": "Warm the cache before sending it full traffic: pre-load the hottest keys, ramp traffic gradually, and use the single-flight lock from the stampede fix." }
+      ]
+    },
+    {
+      "id": "eviction",
+      "title": "Cache full · LRU eviction",
+      "summary": "Redis hits maxmemory, so a new key forces the least recently used one out. For clarity the cache holds only 3 keys; real instances hold millions.",
+      "steps": [
+        { "at": "cache", "title": "A full cache", "does": "maxmemory is reached with 3 keys. Config: maxmemory-policy allkeys-lru. Notes show how long each key has been idle.", "tag": "FULL", "tone": "warn",
+          "state": [
+            { "of": "cache", "name": "user:1", "value": { "name": "Grace" }, "note": "idle 41 s (oldest)" },
+            { "of": "cache", "name": "user:2", "value": { "name": "Ada" }, "note": "idle 10 s" },
+            { "of": "cache", "name": "user:3", "value": { "name": "Linus" }, "note": "idle 3 s (newest)" },
+            { "of": "cache", "name": "evicted_keys", "value": 0 } ] },
+        { "at": "app->cache", "title": "A read touches user:2", "does": "Every access updates the key's last-used clock. user:2 jumps from middle to newest.", "carries": "GET user:2", "ms": 0.2, "tag": "HIT", "tone": "ok",
+          "state": [
+            { "of": "cache", "name": "user:1", "value": { "name": "Grace" }, "note": "idle 42 s (oldest, next to go)" },
+            { "of": "cache", "name": "user:2", "value": { "name": "Ada" }, "note": "idle 0 s (just used)" },
+            { "of": "cache", "name": "user:3", "value": { "name": "Linus" }, "note": "idle 4 s" } ] },
+        { "at": "app->cache", "title": "A new key arrives", "does": "A miss for user:4 was filled from Postgres. The SET needs memory the cache does not have.", "carries": "SET user:4 {...} EX 300", "ms": 0.3, "tag": "SET", "tone": "info",
+          "values": [{ "name": "command", "value": "SET user:4 '{\"name\":\"Ken\"}' EX 300" }] },
+        { "at": "cache", "title": "Redis evicts the LRU key", "does": "Before accepting the write Redis frees memory. With allkeys-lru it samples a few keys (maxmemory-samples, default 5) and removes the one idle longest, here user:1. This is approximate LRU, not an exact list.", "ms": 0.1, "tag": "EVICT", "tone": "warn",
+          "state": [
+            { "of": "cache", "name": "user:1", "value": null },
+            { "of": "cache", "name": "user:4", "value": { "name": "Ken" }, "note": "idle 0 s, TTL 300 s" },
+            { "of": "cache", "name": "evicted_keys", "value": 1 } ],
+          "note": "Eviction frees space by removing keys that may still be valid. TTL expiry removes keys that are due. See the eviction page for the policies." },
+        { "at": "app->cache", "back": true, "title": "Redis accepts the write", "does": "OK. With noeviction instead, this SET would have failed with an out-of-memory error.", "carries": "+OK", "ms": 0.2 },
+        { "at": "app->cache", "back": true, "title": "Later, user:1 is requested", "does": "The key was evicted, not expired. The app cannot tell the difference and sees a plain miss.", "carries": "(nil)", "ms": 0.25, "tag": "MISS", "tone": "warn",
+          "note": "A rising evicted_keys count together with a falling hit ratio means the cache is too small for the working set." },
+        { "at": "cache", "title": "Refilling user:1 evicts the next oldest", "does": "SET user:1 forces another eviction. The oldest remaining key is user:3.", "ms": 0.1, "tag": "EVICT", "tone": "warn",
+          "state": [
+            { "of": "cache", "name": "user:3", "value": null },
+            { "of": "cache", "name": "user:1", "value": { "name": "Grace" }, "note": "idle 0 s" },
+            { "of": "cache", "name": "evicted_keys", "value": 2 } ] }
+      ]
+    }
+  ]
+}

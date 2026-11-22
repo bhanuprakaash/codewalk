@@ -100,7 +100,8 @@ from a repo and are described in [system.md](system.md).
   HTML (`p`, `b`, `i`, `em`, `strong`, `code`, `pre`, `ul`, `ol`, `li`, `br`, `a`); anything else is
   dropped.
 - `link`: a path relative to this file's folder, to a folder (`caching/`) or a file
-  (`eviction.html`, `other.map.json`). Clicking the box opens it; the card still has the details.
+  (`eviction.html`, `other.map.json`). A `topic` box opens its link when clicked; any other box
+  opens its card, which has an "Open …" link.
 
 ## Edges
 

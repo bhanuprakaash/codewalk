@@ -54,7 +54,8 @@ file only when there are no errors. The app serves the built file as written
   owns. They show as chips under the box and open the type card.
 - `drill` (optional): clicking the box opens it instead of the box card.
   - `"<scope>"`: a scope folder in the same project (`<project>/<scope>/`, with a storyboard or walk).
-  - `"system:<id>"`: the child system view `<project>/system-<id>.json`, at `/<project>/system:<id>`.
+  - `"system:<id>"`: the child system view `<project>/system-<id>.json`, at
+    `/<project>/system-<id>.json`.
 - Edge `kind`: `calls`, `http`, `sse`, `mcp`, `imports`, `stores`. The edge shows its `label`, or
   its kind when there is none; `what` shows on the edge and box cards.
 

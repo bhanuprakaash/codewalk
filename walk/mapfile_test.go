@@ -46,3 +46,17 @@ func TestCheckMap(t *testing.T) {
 		t.Errorf("got\n%q\nwant\n%q", got, want)
 	}
 }
+
+func TestExampleMapsAreValid(t *testing.T) {
+	maps, _ := filepath.Glob("../examples/*/*.map.json")
+	more, _ := filepath.Glob("../examples/*/*/*.map.json")
+	if maps = append(maps, more...); len(maps) == 0 {
+		t.Fatal("no example maps found")
+	}
+	for _, m := range maps {
+		errs, err := CheckMap(m)
+		if err != nil || len(errs) > 0 {
+			t.Errorf("%s: %v %q", m, err, errs)
+		}
+	}
+}
