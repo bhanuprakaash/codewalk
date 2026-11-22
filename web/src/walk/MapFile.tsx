@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { dirOf, resolve, routeTo, useNav, type TreeNode } from '../route';
 import { Explorer } from './Explorer';
 import { Notice } from './Header';
-import { toWalk, type MapDoc } from './mapfile';
+import { toWalk, type MapDoc } from './mapdoc';
 import { OVERVIEW } from './nav';
 import { loadUser } from './user';
 import type { User } from './types';
