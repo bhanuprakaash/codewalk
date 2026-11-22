@@ -60,11 +60,11 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 	})
 
 	mux.HandleFunc("GET /api/user", func(w http.ResponseWriter, r *http.Request) {
-		dir, ok := dirOf(w, r, dataDir, false)
+		path, ok := userFile(w, r, dataDir)
 		if !ok {
 			return
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, "user.json"))
+		raw, err := os.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
 			raw, err = []byte("{}"), nil
 		}
@@ -78,7 +78,7 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 
 	var userLocks sync.Map
 	mux.HandleFunc("PATCH /api/user", func(w http.ResponseWriter, r *http.Request) {
-		dir, ok := dirOf(w, r, dataDir, false)
+		path, ok := userFile(w, r, dataDir)
 		if !ok {
 			return
 		}
@@ -88,7 +88,6 @@ func walkRoutes(mux *http.ServeMux, dataDir string) {
 			writeError(w, http.StatusBadRequest, "The patch must be a JSON object.")
 			return
 		}
-		path := filepath.Join(dir, "user.json")
 		lock, _ := userLocks.LoadOrStore(path, &sync.Mutex{})
 		lock.(*sync.Mutex).Lock()
 		defer lock.(*sync.Mutex).Unlock()
@@ -183,8 +182,8 @@ func resolveInRepo(repo, path string) (full, rel string, err error) {
 	return full, rel, nil
 }
 
-// scopeDir maps ?project=&scope= to <data>/<project>/<scope>. Both must be a single plain name,
-// so a request can never reach outside the data dir.
+// scopeDir maps ?project=&scope= to <data>/<project>/<scope>. project is a plain name and scope a
+// plain relative path (a scope folder may be nested), so a request can never leave the data dir.
 func scopeDir(w http.ResponseWriter, r *http.Request, dataDir string) (string, bool) {
 	return dirOf(w, r, dataDir, true)
 }
@@ -192,15 +191,9 @@ func scopeDir(w http.ResponseWriter, r *http.Request, dataDir string) (string, b
 // dirOf is scopeDir that also accepts a missing scope, meaning the project folder itself.
 func dirOf(w http.ResponseWriter, r *http.Request, dataDir string, needScope bool) (string, bool) {
 	project, scope := r.URL.Query().Get("project"), r.URL.Query().Get("scope")
-	names := []string{project}
-	if needScope || scope != "" {
-		names = append(names, scope)
-	}
-	for _, name := range names {
-		if !plainName(name) {
-			writeError(w, http.StatusBadRequest, "project and scope are required and must be plain names.")
-			return "", false
-		}
+	if !plainName(project) || (needScope || scope != "") && (scope == "" || !localPath(scope)) {
+		writeError(w, http.StatusBadRequest, "project and scope are required and must be plain names.")
+		return "", false
 	}
 	dir := filepath.Join(dataDir, project, scope)
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -212,6 +205,21 @@ func dirOf(w http.ResponseWriter, r *http.Request, dataDir string, needScope boo
 		return "", false
 	}
 	return dir, true
+}
+
+// userFile is the user.json for ?project=[&scope=], or <name>.user.json beside ?map=<name>.map.json.
+func userFile(w http.ResponseWriter, r *http.Request, dataDir string) (string, bool) {
+	m := r.URL.Query().Get("map")
+	if m == "" {
+		dir, ok := dirOf(w, r, dataDir, false)
+		return filepath.Join(dir, "user.json"), ok
+	}
+	full, err := inProject(dataDir, r.URL.Query().Get("project"), m)
+	if err != nil || !strings.HasSuffix(full, ".map.json") {
+		writeError(w, http.StatusNotFound, "No such map.")
+		return "", false
+	}
+	return strings.TrimSuffix(full, ".map.json") + ".user.json", true
 }
 
 func plainName(name string) bool {

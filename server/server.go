@@ -17,9 +17,8 @@ import (
 )
 
 type project struct {
-	Name   string          `json:"name"`
-	Info   json.RawMessage `json:"info,omitempty"`
-	Scopes []string        `json:"scopes"`
+	Name string          `json:"name"`
+	Info json.RawMessage `json:"info,omitempty"`
 }
 
 func Handler(dataDir string) http.Handler {
@@ -34,6 +33,7 @@ func Handler(dataDir string) http.Handler {
 		json.NewEncoder(w).Encode(projects)
 	})
 	walkRoutes(mux, dataDir)
+	treeRoutes(mux, dataDir)
 	changeRoutes(mux, dataDir)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", spa(web.FS()))
@@ -99,30 +99,7 @@ func listProjects(dataDir string) ([]project, error) {
 		if raw, err := os.ReadFile(filepath.Join(dir, "project.json")); err == nil && json.Valid(raw) {
 			p.Info = raw
 		}
-		if p.Scopes, err = listScopes(dir); err != nil {
-			return nil, err
-		}
 		projects = append(projects, p)
 	}
 	return projects, nil
-}
-
-func listScopes(projectDir string) ([]string, error) {
-	entries, err := os.ReadDir(projectDir)
-	if err != nil {
-		return nil, err
-	}
-	scopes := []string{}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		for _, f := range []string{"storyboard.json", "walk.json"} {
-			if _, err := os.Stat(filepath.Join(projectDir, e.Name(), f)); err == nil {
-				scopes = append(scopes, e.Name())
-				break
-			}
-		}
-	}
-	return scopes, nil
 }

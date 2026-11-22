@@ -31,8 +31,7 @@ func TestHandler_Projects(t *testing.T) {
 	rec := httptest.NewRecorder()
 	Handler(data).ServeHTTP(rec, newRequest(http.MethodGet, "/api/projects", ""))
 
-	want := `[{"name":"alpha","info":{"name":"Alpha","repo":"/src/alpha"},"scopes":["run","walk"]},` +
-		`{"name":"beta","scopes":["only"]}]` + "\n"
+	want := `[{"name":"alpha","info":{"name":"Alpha","repo":"/src/alpha"}},{"name":"beta"}]` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want {
 		t.Fatalf("got %d %q, want 200 %q", rec.Code, rec.Body.String(), want)
 	}
