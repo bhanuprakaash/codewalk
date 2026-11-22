@@ -2156,6 +2156,12 @@ pre.diff .hunk {
     max-height: 30vh;
     overflow-y: auto;
   }
+  #legend {
+    bottom: 84px;
+  }
+  #hint {
+    display: none;
+  }
 }
 
 .held-inline {
