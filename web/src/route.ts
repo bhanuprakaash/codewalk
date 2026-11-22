@@ -11,12 +11,6 @@ export const hrefOf = (r: Route) =>
     .map((x) => encodeURIComponent(x!))
     .join('/');
 
-export function parentOf(r: Route): Route | null {
-  if (r.view && r.view !== OVERVIEW) return { project: r.project, scope: r.scope, from: r.from };
-  if (r.scope) return r.from ? { project: r.project, scope: r.from } : { project: r.project };
-  return null;
-}
-
 export interface Nav {
   projects: Project[] | null;
   route: Route;

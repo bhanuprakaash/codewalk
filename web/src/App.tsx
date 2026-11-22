@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavCtx, hrefOf, type Project, type Route } from './route';
-import { Notice } from './walk/Header';
+import { Notice, Sidebar } from './walk/Header';
 import { OVERVIEW } from './walk/nav';
 import { System } from './walk/System';
 import { Walk } from './walk/Walk';
@@ -45,36 +45,39 @@ export function App() {
 
   return (
     <NavCtx.Provider value={{ projects, route, go: navigate }}>
-      <main className="main">
-        {route.project && route.scope && !route.scope.startsWith('system:') ? (
-          <Walk
-            project={route.project}
-            scope={route.scope}
-            view={route.view ?? OVERVIEW}
-            onView={(view) => navigate({ ...route, view })}
-          />
-        ) : route.project ? (
-          <System
-            project={route.project}
-            id={route.scope?.slice('system:'.length)}
-            onOpen={(drill) =>
-              navigate({
-                project: route.project,
-                scope: drill,
-                from: route.scope?.startsWith('system:') ? route.scope : undefined,
-              })
-            }
-          />
-        ) : (
-          <Notice>
-            {failed && <p className="note">Could not load projects. Is codewalk running?</p>}
-            {projects?.length === 0 && <p className="note">No projects in ~/.codewalk yet.</p>}
-            {projects?.length !== 0 && !failed && (
-              <p className="note">Pick a project or a scope in the bar above.</p>
-            )}
-          </Notice>
-        )}
-      </main>
+      <div className="app">
+        <Sidebar />
+        <main className="main">
+          {route.project && route.scope && !route.scope.startsWith('system:') ? (
+            <Walk
+              project={route.project}
+              scope={route.scope}
+              view={route.view ?? OVERVIEW}
+              onView={(view) => navigate({ ...route, view })}
+            />
+          ) : route.project ? (
+            <System
+              project={route.project}
+              id={route.scope?.slice('system:'.length)}
+              onOpen={(drill) =>
+                navigate({
+                  project: route.project,
+                  scope: drill,
+                  from: route.scope?.startsWith('system:') ? route.scope : undefined,
+                })
+              }
+            />
+          ) : (
+            <Notice>
+              {failed && <p className="note">Could not load projects. Is codewalk running?</p>}
+              {projects?.length === 0 && <p className="note">No projects in ~/.codewalk yet.</p>}
+              {projects?.length !== 0 && !failed && (
+                <p className="note">Pick a project in the sidebar.</p>
+              )}
+            </Notice>
+          )}
+        </main>
+      </div>
     </NavCtx.Provider>
   );
 }

@@ -5,7 +5,7 @@ import { FuncCard, MethodCard, TypeCard } from './cards';
 import { WalkCtx, useWalk, type Goto } from './ctx';
 import { KIND, layoutOf, neighbourhood } from './graph';
 import { Legend } from './Bars';
-import { Notice, PatternsButton, TopBar, type Tab } from './Header';
+import { Notice, PatternsButton, TopBar } from './Header';
 import { BoxIcon } from './icons';
 import { initNav, reducer } from './nav';
 import { NoteSec, OrphansCard, boxKey, orphans, type Notes } from './notes';
@@ -13,7 +13,6 @@ import { Panel } from './Panel';
 import { PatternsCard } from './patterns';
 import { Chip, Sec } from './parts';
 import { loadUser, patchUser } from './user';
-import { useNav } from '../route';
 import type { Pt, System as SystemData, User, Walk } from './types';
 
 type Loaded = { sys: SystemData; user: User } | { error: string } | null;
@@ -130,39 +129,6 @@ function SystemView({
       ? `${query}&id=${encodeURIComponent(view.slice('system:'.length))}`
       : query,
   );
-  const nav = useNav();
-  const scopes = nav.projects?.find((p) => p.name === nav.route.project)?.scopes;
-  const [flows, setFlows] = useState<Tab[]>([]);
-  useEffect(() => {
-    let live = true;
-    Promise.all(
-      (scopes ?? []).map((scope) =>
-        fetch(`/api/walk?${query}&scope=${encodeURIComponent(scope)}`)
-          .then((r) => (r.ok ? (r.json() as Promise<Walk>) : null))
-          .catch(() => null)
-          .then((w) =>
-            (w?.workflows ?? []).map((wf): Tab => ({
-              label: `${scope} · ${wf.title}`,
-              tone: wf.nodes.some((id) => w!.nodes[id].kind === 'you') ? 'you' : 'go',
-              on: false,
-              open: () => nav.go({ project: nav.route.project, scope, view: wf.id }),
-            })),
-          ),
-      ),
-    ).then((l) => live && setFlows(l.flat()));
-    return () => {
-      live = false;
-    };
-  }, [query, scopes?.join()]);
-  const tabs: Tab[] = [
-    {
-      label: 'System',
-      tone: 'sys',
-      on: view === 'system',
-      open: () => nav.go({ project: nav.route.project }),
-    },
-    ...flows,
-  ];
   const cur = s.hist[s.hi];
   const selected = s.open && cur ? cur : null;
 
@@ -243,7 +209,7 @@ function SystemView({
       value={{ walk, wf: null, wi: null, go, changes: changed.res, notes, setNote }}
     >
       <div className="walk system">
-        <TopBar name={sys.title} tabs={tabs}>
+        <TopBar crumbs={view === 'system' ? ['System'] : ['System', sys.title]}>
           <span className="meta">
             <span className="sha">{sys.commit.slice(0, 7)}</span>
             {saveFailed ? ' · could not save' : ''}
