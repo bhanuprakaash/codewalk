@@ -44,7 +44,7 @@ export function Explorer({
   const canvas = useRef<CanvasHandle>(null);
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { route, go: navigate } = useNav();
+  const { route } = useNav();
   const asked = useAsk(query);
   const changed = useChanges(query);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
@@ -196,25 +196,7 @@ export function Explorer({
   return (
     <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
-        <TopBar
-          tabs={[
-            {
-              label: 'System',
-              tone: 'sys',
-              on: false,
-              open: () => navigate({ project: route.project }),
-            },
-            { label: 'Overview', tone: 'ov', on: ov, open: () => show(OVERVIEW) },
-            ...walk.workflows.map((w) => ({
-              label: w.title,
-              tone: w.nodes.some((id) => walk.nodes[id].kind === 'you')
-                ? ('you' as const)
-                : ('go' as const),
-              on: s.view === w.id,
-              open: () => show(w.id),
-            })),
-          ]}
-        >
+        <TopBar crumbs={[route.scope!, wf?.title ?? 'Overview']}>
           <span className="meta">
             <span className="sha">{walk.commit.slice(0, 7)}</span>
             {walk.dirty ? ' · dirty' : ''}

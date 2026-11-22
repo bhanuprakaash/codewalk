@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { hrefOf, parentOf, useNav, type Route } from '../route';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { hrefOf, useNav, type Route } from '../route';
 import { toggleTheme } from '../theme';
+import { OVERVIEW } from './nav';
+import type { Walk } from './types';
 
 const Svg = ({
   d,
@@ -36,180 +38,201 @@ const CHEVRON = 'M6 9l6 6 6-6';
 const HAND =
   'M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7c0 4-3 7-6.5 7S5 17 5 14v-2a1.5 1.5 0 013 0';
 const ARROW = 'M4 12h14M13 6l6 6-6 6';
+const FOLDER = 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z';
+const PANEL = 'M3 4h18v16H3z M9 4v16';
 
-type Item = { label: string; to: Route; on?: boolean };
-type Group = { title?: string; items: Item[] };
+type Flow = { id: string; title: string; tone: 'go' | 'you' };
+const flowsOf = (w: Walk): Flow[] =>
+  w.workflows.map((wf) => ({
+    id: wf.id,
+    title: wf.title,
+    tone: wf.nodes.some((id) => w.nodes[id].kind === 'you') ? 'you' : 'go',
+  }));
 
-function Picker({ label, groups }: { label: ReactNode; groups: Group[] }) {
+const railKey = (onFlow: boolean) => `codewalk:rail:${onFlow ? 'workflow' : 'map'}`;
+function loadRail(onFlow: boolean) {
+  try {
+    const v = localStorage.getItem(railKey(onFlow));
+    if (v) return v === '1';
+  } catch {
+    // private mode: fall back to the default
+  }
+  return onFlow;
+}
+
+function Item({ to, on, tone, label }: { to: Route; on: boolean; tone: Tone; label: string }) {
   const { go } = useNav();
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: Event) => box.current?.contains(e.target as Node) || setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    addEventListener('pointerdown', away);
-    addEventListener('keydown', esc);
-    return () => {
-      removeEventListener('pointerdown', away);
-      removeEventListener('keydown', esc);
-    };
-  }, [open]);
   return (
-    <div className="pick" ref={box}>
-      <button
-        className="pill"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {label}
-        <Svg d={CHEVRON} />
-      </button>
-      {open && (
-        <div className="menu" role="menu">
-          {groups.map((g, i) => (
-            <div key={i}>
-              {g.title && <div className="mh">{g.title}</div>}
-              {g.items.map((it) => (
-                <a
-                  key={it.label}
-                  role="menuitem"
-                  href={hrefOf(it.to)}
-                  className={it.on ? 'on' : ''}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setOpen(false);
-                    go(it.to);
-                  }}
-                >
-                  {it.label}
-                </a>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <a
+      href={hrefOf(to)}
+      className={`tab ${tone}${on ? ' on' : ''}`}
+      title={label}
+      aria-current={on ? 'page' : undefined}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+        e.preventDefault();
+        go(to);
+      }}
+    >
+      <span className="ti" aria-hidden="true">
+        <Svg d={tone === 'go' ? ARROW : tone === 'you' ? HAND : GRID} size={14} sw={2} />
+      </span>
+      <span className="lbl">{label}</span>
+    </a>
   );
 }
 
-export function TopBar({
-  name,
-  tabs,
-  children,
-}: {
-  name?: string;
-  tabs?: Tab[];
-  children?: ReactNode;
-}) {
+export function Sidebar() {
   const { projects, route, go } = useNav();
-  const up = parentOf(route);
-  const title = name ?? route.scope;
+  const project = route.project;
+  const scopes = projects?.find((p) => p.name === project)?.scopes ?? [];
+  const onSystem = !route.scope || route.scope.startsWith('system:');
+  const onFlow = !onSystem && !!route.view && route.view !== OVERVIEW;
+  const [rail, setRail] = useState(() => loadRail(onFlow));
+  useEffect(() => setRail(loadRail(onFlow)), [onFlow]);
+  const toggle = () => {
+    setRail(!rail);
+    try {
+      localStorage.setItem(railKey(onFlow), rail ? '0' : '1');
+    } catch {
+      // private mode: the choice lasts until the next view
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as Element).closest('textarea, input, select')) return;
+      e.preventDefault();
+      toggle();
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  });
+
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [flows, setFlows] = useState<Record<string, Flow[]>>({});
+  const expanded = scopes.filter((s) => open[s] ?? s === route.scope);
+  useEffect(() => {
+    for (const scope of expanded) {
+      const key = `${project}/${scope}`;
+      if (key in flows) continue;
+      setFlows((f) => ({ ...f, [key]: [] }));
+      fetch(`/api/walk?project=${encodeURIComponent(project!)}&scope=${encodeURIComponent(scope)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<Walk>) : null))
+        .then((w) => w && setFlows((f) => ({ ...f, [key]: flowsOf(w) })))
+        .catch(() => {});
+    }
+  }, [project, expanded.join()]);
+
+  return (
+    <aside className={`side${rail ? ' rail' : ''}`}>
+      <div className="sh">
+        <select
+          aria-label="Project"
+          value={project ?? ''}
+          onChange={(e) => go({ project: e.target.value })}
+        >
+          {!project && <option value="">Pick a project</option>}
+          {(projects ?? []).map((p) => (
+            <option key={p.name}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+      {project && (
+        <nav className="tree" aria-label="Views in this project">
+          <Item to={{ project }} on={onSystem} tone="sys" label="System" />
+          {scopes.length > 0 && <div className="sec">Scopes</div>}
+          {scopes.map((scope) => {
+            const exp = expanded.includes(scope);
+            return (
+              <div key={scope} className={`scope${scope === route.scope ? ' cur' : ''}`}>
+                <button
+                  className="fold"
+                  title={scope}
+                  aria-expanded={exp}
+                  onClick={() => {
+                    if (rail) toggle();
+                    setOpen({ ...open, [scope]: rail || !exp });
+                  }}
+                >
+                  <Svg d={FOLDER} size={15} sw={1.8} />
+                  <span className="lbl">{scope}</span>
+                  <span className="chev" aria-hidden="true">
+                    <Svg d={CHEVRON} size={14} />
+                  </span>
+                </button>
+                {exp && (
+                  <div className="kids">
+                    <Item
+                      to={{ project, scope }}
+                      on={scope === route.scope && (route.view ?? OVERVIEW) === OVERVIEW}
+                      tone="ov"
+                      label="Overview"
+                    />
+                    {(flows[`${project}/${scope}`] ?? []).map((f) => (
+                      <Item
+                        key={f.id}
+                        to={{ project, scope, view: f.id }}
+                        on={scope === route.scope && route.view === f.id}
+                        tone={f.tone}
+                        label={f.title}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+      )}
+      <div className="sf">
+        <button
+          className="icon-btn"
+          title="Light / dark"
+          aria-label="Light / dark"
+          onClick={toggleTheme}
+        >
+          <span className="moon">
+            <Svg d={MOON} size={18} sw={1.8} />
+          </span>
+          <span className="sun">
+            <Svg d={SUN} size={18} sw={1.8} />
+          </span>
+        </button>
+        <button
+          className="icon-btn"
+          title={rail ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
+          aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!rail}
+          onClick={toggle}
+        >
+          <Svg d={PANEL} size={18} sw={1.8} />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+export function TopBar({ crumbs, children }: { crumbs?: string[]; children?: ReactNode }) {
+  const { route } = useNav();
+  const trail = crumbs ?? [route.project ?? 'codewalk'];
   return (
     <header>
-      <button
-        className="icon-btn"
-        title="Light / dark"
-        aria-label="Light / dark"
-        onClick={toggleTheme}
-      >
-        <span className="moon">
-          <Svg d={MOON} size={18} sw={1.8} />
-        </span>
-        <span className="sun">
-          <Svg d={SUN} size={18} sw={1.8} />
-        </span>
-      </button>
-      <div className="mark">
-        <span aria-hidden="true">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <circle cx="5" cy="12" r="2.2" />
-            <circle cx="19" cy="6" r="2.2" />
-            <circle cx="19" cy="18" r="2.2" />
-            <path d="M7 11l10-4M7 13l10 4" />
-          </svg>
-        </span>
-        <b>codewalk</b>
-      </div>
-      <span className="vsep" aria-hidden="true" />
-      <button className="round" aria-label="Back" disabled={!up} onClick={() => up && go(up)}>
-        <Svg d="M19 12H5M11 6l-6 6 6 6" size={16} />
-      </button>
-      <Picker
-        label={
-          route.project ? (
-            <>
-              {route.project}
-              {title && (
-                <>
-                  {' · '}
-                  <b>{title}</b>
-                </>
-              )}
-            </>
-          ) : (
-            'Pick a project'
-          )
-        }
-        groups={(projects ?? []).map((p) => ({
-          title: p.name,
-          items: [
-            {
-              label: 'System',
-              to: { project: p.name },
-              on: route.project === p.name && !route.scope,
-            },
-            ...p.scopes.map((scope) => ({
-              label: scope,
-              to: { project: p.name, scope },
-              on: route.project === p.name && route.scope === scope,
-            })),
-          ],
-        }))}
-      />
-      {tabs && <Tabs tabs={tabs} />}
+      <nav className="crumbs" aria-label="Breadcrumb">
+        {trail.map((c, i) => (
+          <Fragment key={i}>
+            {i > 0 && <span aria-hidden="true">›</span>}
+            {i === trail.length - 1 ? <b>{c}</b> : <span>{c}</span>}
+          </Fragment>
+        ))}
+      </nav>
       <span className="grow" />
       {children}
     </header>
   );
 }
 
-export type Tab = { label: string; on: boolean; tone: 'sys' | 'ov' | 'go' | 'you'; open(): void };
-
-function Tabs({ tabs }: { tabs: Tab[] }) {
-  const nav = useRef<HTMLElement>(null);
-  const active = tabs.find((t) => t.on)?.label;
-  useEffect(() => {
-    nav.current?.querySelector('.on')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-  }, [active]);
-  return (
-    <nav className="tabs" aria-label="Views in this project" ref={nav}>
-      {tabs.map((t) => (
-        <button key={t.label} className={`tab ${t.tone}${t.on ? ' on' : ''}`} onClick={t.open}>
-          <span className="ti" aria-hidden="true">
-            {t.tone === 'go' ? (
-              <Svg d={ARROW} size={14} sw={2} />
-            ) : t.tone === 'you' ? (
-              <Svg d={HAND} size={14} sw={2} />
-            ) : (
-              <Svg d={GRID} size={14} sw={2} />
-            )}
-          </span>
-          {t.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
+type Tone = 'sys' | 'ov' | 'go' | 'you';
 
 export function PatternsButton({ n, onOpen }: { n: number; onOpen(): void }) {
   if (!n) return null;
