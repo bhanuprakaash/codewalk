@@ -1,0 +1,59 @@
+{
+  "title": "System design roadmap",
+  "summary": "A learning path through the core building blocks of scalable systems. Each topic builds on the one before it. Only Caching is written so far; click it to start.",
+  "nodes": [
+    { "id": "caching", "kind": "topic", "label": "Caching", "sub": "start here", "pos": [0, 0], "link": "caching/",
+      "what": "Keep copies of hot data in fast memory so most reads never reach the database.",
+      "why": "It is the cheapest way to cut latency and database load, and it introduces the central trade-off of the field: speed versus freshness.",
+      "gotcha": "Invalidation. Reading through a cache is easy; keeping it correct after writes is the hard part." },
+    { "id": "lb", "kind": "topic", "label": "Load balancing", "sub": "coming later", "pos": [1, 0],
+      "what": "Spread requests across many identical servers and route around the dead ones.",
+      "why": "One server is a capacity limit and a single point of failure. A balancer turns many servers into one service.",
+      "gotcha": "Stateless servers scale easily; sticky sessions and in-memory state quietly break that." },
+    { "id": "db", "kind": "topic", "label": "Databases & replication", "sub": "coming later", "pos": [2, 0],
+      "what": "Copy the database to replicas for read scale and failover.",
+      "why": "Caching only goes so far; the source of truth must itself survive a machine loss and serve more reads.",
+      "gotcha": "Replicas lag. A read right after a write can return old data." },
+    { "id": "shard", "kind": "topic", "label": "Sharding", "sub": "coming later", "pos": [3, 0],
+      "what": "Split data across machines by a key so no single node holds it all.",
+      "why": "Replication scales reads; sharding is how you scale writes and total data size.",
+      "gotcha": "The shard key decides everything. A bad one gives hot shards and painful cross-shard queries." },
+    { "id": "queue", "kind": "topic", "label": "Queues & async", "sub": "coming later", "pos": [3, 1],
+      "what": "Hand slow or bursty work to a queue and let workers process it at their own pace.",
+      "why": "It decouples producers from consumers, absorbs spikes and lets a request return before the work is done.",
+      "gotcha": "Delivery is usually at-least-once, so consumers must be idempotent." },
+    { "id": "cdn", "kind": "topic", "label": "CDNs", "sub": "coming later", "pos": [2, 1],
+      "what": "Serve static and cacheable content from edge servers close to users.",
+      "why": "Distance is latency. A CDN is caching applied geographically.",
+      "gotcha": "Purging a CDN is slow and global; version your asset URLs instead." },
+    { "id": "cap", "kind": "topic", "label": "Consistency & CAP", "sub": "coming later", "pos": [1, 1],
+      "what": "What every replica sees, and when, once data lives in more than one place.",
+      "why": "Caches, replicas and shards all trade consistency for speed or availability. This names the trade.",
+      "gotcha": "CAP is about behavior during a network partition, not a menu of two-out-of-three at all times." },
+    { "id": "rate", "kind": "topic", "label": "Rate limiting", "sub": "coming later", "pos": [0, 1],
+      "what": "Cap how many requests a client can make in a time window.",
+      "why": "It protects shared capacity from abuse, bugs and retry storms.",
+      "gotcha": "Limits kept per server instead of in shared state let a client multiply its quota by the server count." }
+  ],
+  "edges": [
+    { "from": "caching", "to": "lb", "kind": "call", "label": "then" },
+    { "from": "lb", "to": "db", "kind": "call", "label": "then" },
+    { "from": "db", "to": "shard", "kind": "call", "label": "then" },
+    { "from": "shard", "to": "queue", "kind": "call", "label": "then" },
+    { "from": "queue", "to": "cdn", "kind": "call", "label": "then" },
+    { "from": "cdn", "to": "cap", "kind": "call", "label": "then" },
+    { "from": "cap", "to": "rate", "kind": "call", "label": "then" }
+  ],
+  "flows": [
+    {
+      "id": "how-to-use",
+      "title": "How to use this roadmap",
+      "summary": "Follow the arrows; open a topic to read it and play its flows.",
+      "steps": [
+        { "at": "caching", "title": "Start with Caching", "does": "Click the box to open the Caching folder. Read the page, then switch to the Map tab.", "note": "Boxes with a link open; the rest are planned." },
+        { "at": "caching->lb", "title": "Follow the arrows", "does": "Each topic leans on the one before it. Caching creates the need for consistency thinking; load balancing and replication create the need to scale." },
+        { "at": "cap", "title": "Return to the hard parts", "does": "Consistency & CAP names the trade-offs you already met in caching. Come back to it once you have seen replicas and shards." }
+      ]
+    }
+  ]
+}

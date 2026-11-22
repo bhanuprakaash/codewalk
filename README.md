@@ -1,8 +1,11 @@
 # codewalk
 
-A local app for walking through a codebase: projects, scopes and the walks written for them.
-It runs as a small always-on server and opens in the browser at http://codewalk.localhost:47474.
-Walks are plain JSON under `~/.codewalk/<project>/<scope>/`, never in this repo.
+A local app for learning a subject: a codebase, a system design topic, an architecture. A project
+is a folder tree of AI-written reading pages (`*.html`) and maps (`*.map.json`: boxes, arrows and
+flows that play step by step), plus code walks built from a repo. It runs as a small always-on
+server and opens in the browser at http://codewalk.localhost:47474. Projects live under
+`~/.codewalk/<project>/`, never in this repo. [docs/authoring.md](docs/authoring.md) says how to
+write one.
 
 ## Install
 
@@ -16,11 +19,25 @@ codewalk install          # writes the launchd agent com.codewalk and starts it
 Open http://codewalk.localhost:47474. The agent restarts the server if it stops, and logs to
 `~/Library/Logs/codewalk.log`. `codewalk uninstall` removes it.
 
+## Try the example
+
+```sh
+cp -r examples/system-design ~/.codewalk/
+```
+
+Open http://codewalk.localhost:47474/system-design: a roadmap, then `caching/` with an overview
+page and a map whose flows play a cache hit, a miss, a write with invalidation, Redis going down
+and LRU eviction, with what-ifs for a stampede and stale reads.
+
 ## Use
 
-Pick a project or scope in the top bar. The address follows it: `/<project>` opens the project's
-system view ([docs/system.md](docs/system.md)), `/<project>/<scope>` a walk's overview and
-`/<project>/<scope>/<workflow>` a workflow. Dragged boxes are saved to `user.json` beside the walk.
+Pick a project in the sidebar; its folders are the tree below. The address is the path in the
+project: `/<project>` opens the root entry, `/<project>/<folder>` a folder's entry
+(`index.html` or `index.map.json`, `?as=page|map` when it has both) and `/<project>/<file>` a page
+or map. `?flow=<id>` plays a flow ([docs/maps.md](docs/maps.md)) or a code walk's workflow. A
+folder with `walk.json` is a code walk; `system.json` at the root is the project's system view
+([docs/system.md](docs/system.md)) when there is no root index. Old `/<project>/<scope>/<workflow>`
+links redirect. Dragged boxes are saved to `user.json` beside the walk.
 An amber border marks a node whose symbol's lines changed (a dot marks one that is gone) between
 the commit you last marked seen (`seenSha` in `user.json`, by default the commit the walk was built
 from) and the repo's HEAD; its card shows the diff. On a system view the border marks a package

@@ -1,7 +1,16 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { hrefOf, useNav, type Route } from '../route';
+import {
+  find,
+  hrefOf,
+  join,
+  routeTo,
+  useNav,
+  type Project,
+  type Route,
+  type TreeNode,
+} from '../route';
 import { toggleTheme } from '../theme';
-import { OVERVIEW } from './nav';
+import { Select } from './Select';
 import type { Walk } from './types';
 
 const Svg = ({
@@ -40,14 +49,18 @@ const HAND =
 const ARROW = 'M4 12h14M13 6l6 6-6 6';
 const FOLDER = 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z';
 const PANEL = 'M3 4h18v16H3z M9 4v16';
+const PAGE = 'M6 3h8l4 4v14H6z M14 3v4h4 M9 12h6 M9 16h6';
+const MAP = 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z M9 4v14 M15 6v14';
 
-type Flow = { id: string; title: string; tone: 'go' | 'you' };
+type Flow = { id: string; title: string; tone: Tone };
 const flowsOf = (w: Walk): Flow[] =>
   w.workflows.map((wf) => ({
     id: wf.id,
     title: wf.title,
     tone: wf.nodes.some((id) => w.nodes[id].kind === 'you') ? 'you' : 'go',
   }));
+const filesUrl = (project: string, file: string) =>
+  `/files/${[project, ...file.split('/')].map(encodeURIComponent).join('/')}`;
 
 const railKey = (onFlow: boolean) => `codewalk:rail:${onFlow ? 'workflow' : 'map'}`;
 function loadRail(onFlow: boolean) {
@@ -57,8 +70,17 @@ function loadRail(onFlow: boolean) {
   } catch {
     // private mode: fall back to the default
   }
-  return onFlow;
+  return onFlow || matchMedia('(max-width: 700px)').matches;
 }
+
+const ICON: Record<Tone, string> = {
+  sys: GRID,
+  ov: GRID,
+  go: ARROW,
+  you: HAND,
+  page: PAGE,
+  map: MAP,
+};
 
 function Item({ to, on, tone, label }: { to: Route; on: boolean; tone: Tone; label: string }) {
   const { go } = useNav();
@@ -75,19 +97,48 @@ function Item({ to, on, tone, label }: { to: Route; on: boolean; tone: Tone; lab
       }}
     >
       <span className="ti" aria-hidden="true">
-        <Svg d={tone === 'go' ? ARROW : tone === 'you' ? HAND : GRID} size={14} sw={2} />
+        <Svg d={ICON[tone]} size={14} sw={2} />
       </span>
       <span className="lbl">{label}</span>
     </a>
   );
 }
 
+// the flows a folder's walk or map entry plays, fetched once per file
+function useFlows(project: string | undefined, want: { key: string; walk: boolean }[]) {
+  const [flows, setFlows] = useState<Record<string, Flow[]>>({});
+  useEffect(() => {
+    for (const { key, walk } of want) {
+      const id = `${project}/${key}`;
+      if (id in flows) continue;
+      setFlows((f) => ({ ...f, [id]: [] }));
+      const url = walk
+        ? `/api/walk?project=${encodeURIComponent(project!)}&scope=${encodeURIComponent(key)}`
+        : filesUrl(project!, key);
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          const list: Flow[] = walk
+            ? flowsOf(d as Walk)
+            : (d.flows ?? []).map((f: { id: string; title: string }) => ({
+                id: f.id,
+                title: f.title,
+                tone: 'go',
+              }));
+          setFlows((f) => ({ ...f, [id]: list }));
+        })
+        .catch(() => {});
+    }
+  }, [project, want.map((w) => w.key).join()]);
+  return (key: string) => flows[`${project}/${key}`] ?? [];
+}
+
 export function Sidebar() {
-  const { projects, route, go } = useNav();
+  const { projects, tree, route, go } = useNav();
   const project = route.project;
-  const scopes = projects?.find((p) => p.name === project)?.scopes ?? [];
-  const onSystem = !route.scope || route.scope.startsWith('system:');
-  const onFlow = !onSystem && !!route.view && route.view !== OVERVIEW;
+  const here = route.path ?? '';
+  const onFlow = !!route.flow;
   const [rail, setRail] = useState(() => loadRail(onFlow));
   useEffect(() => setRail(loadRail(onFlow)), [onFlow]);
   const toggle = () => {
@@ -101,7 +152,7 @@ export function Sidebar() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
-      if ((e.target as Element).closest('textarea, input, select')) return;
+      if ((e.target as Element).closest('textarea, input, select, [role=listbox]')) return;
       e.preventDefault();
       toggle();
     };
@@ -110,79 +161,141 @@ export function Sidebar() {
   });
 
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [flows, setFlows] = useState<Record<string, Flow[]>>({});
-  const expanded = scopes.filter((s) => open[s] ?? s === route.scope);
-  useEffect(() => {
-    for (const scope of expanded) {
-      const key = `${project}/${scope}`;
-      if (key in flows) continue;
-      setFlows((f) => ({ ...f, [key]: [] }));
-      fetch(`/api/walk?project=${encodeURIComponent(project!)}&scope=${encodeURIComponent(scope)}`)
-        .then((r) => (r.ok ? (r.json() as Promise<Walk>) : null))
-        .then((w) => w && setFlows((f) => ({ ...f, [key]: flowsOf(w) })))
-        .catch(() => {});
-    }
-  }, [project, expanded.join()]);
+  const inside = (n: TreeNode) => n.path === here || here.startsWith(n.path + '/') || !n.path;
+  const isOpen = (n: TreeNode) => open[`${project}/${n.path}`] ?? inside(n);
+  const flowSource = (n: TreeNode) => {
+    if (n.kind === 'map') return n.path === here ? { key: n.path, walk: false } : null;
+    if (n.kind !== 'dir' || !isOpen(n)) return null;
+    const as = n.path === here ? route.as : undefined;
+    const kind = n.entry?.find((k) => k === as) ?? n.entry?.[0];
+    if (kind === 'walk') return { key: n.path, walk: true };
+    if (kind === 'map' || (kind === 'page' && n.entry?.includes('map') && n.path === here))
+      return n.entry?.includes('map') ? { key: join(n.path, 'index.map.json'), walk: false } : null;
+    return null;
+  };
+  const want: { key: string; walk: boolean }[] = [];
+  const walkTree = (n: TreeNode) => {
+    const src = flowSource(n);
+    if (src) want.push(src);
+    if (n.kind === 'dir' && isOpen(n)) n.kids?.forEach(walkTree);
+  };
+  if (tree) walkTree(tree);
+  const flowsOfKey = useFlows(project, want);
 
+  const flowItems = (n: TreeNode) => {
+    const src = flowSource(n);
+    if (!src) return null;
+    const list = flowsOfKey(src.key);
+    const onEntry = n.path === here;
+    const as = src.walk
+      ? undefined
+      : n.kind === 'dir' && n.entry?.[0] !== 'map'
+        ? 'map'
+        : undefined;
+    return (
+      <>
+        {src.walk && (
+          <Item
+            to={{ project, path: n.path }}
+            on={onEntry && !route.flow}
+            tone="ov"
+            label="Overview"
+          />
+        )}
+        {list.map((f) => (
+          <Item
+            key={f.id}
+            to={{ project, path: n.path, as, flow: f.id }}
+            on={onEntry && route.flow === f.id}
+            tone={f.tone}
+            label={f.title}
+          />
+        ))}
+      </>
+    );
+  };
+
+  const row = (n: TreeNode): ReactNode => {
+    if (n.kind !== 'dir') {
+      return (
+        <Fragment key={n.path}>
+          <Item
+            to={routeTo(project!, n.path)}
+            on={n.path === here && !route.flow}
+            tone={n.kind === 'page' ? 'page' : n.kind === 'map' ? 'map' : 'sys'}
+            label={n.title || n.name}
+          />
+          {n.kind === 'map' && n.path === here && <div className="kids">{flowItems(n)}</div>}
+        </Fragment>
+      );
+    }
+    const exp = isOpen(n);
+    // a code walk's own Overview item marks it, so its folder row does not
+    const cur = n.path === here && n.entry?.[0] !== 'walk';
+    const flip = () => setOpen({ ...open, [`${project}/${n.path}`]: !exp });
+    return (
+      <div key={n.path} className={`scope${inside(n) ? ' in' : ''}${cur ? ' cur' : ''}`}>
+        <div className="frow">
+          <button
+            className="chev"
+            aria-label={exp ? `Collapse ${n.name}` : `Expand ${n.name}`}
+            aria-expanded={exp}
+            tabIndex={n.kids?.length || n.entry?.length ? 0 : -1}
+            onClick={flip}
+          >
+            <Svg d={CHEVRON} size={14} />
+          </button>
+          <a
+            className={`fold${cur && !route.flow ? ' on' : ''}`}
+            href={hrefOf({ project, path: n.path })}
+            title={n.title ? `${n.name} · ${n.title}` : n.name}
+            aria-current={cur && !route.flow ? 'page' : undefined}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+              e.preventDefault();
+              if (rail) toggle();
+              if (n.entry?.length) {
+                go({ project, path: n.path });
+                if (!exp) flip();
+              } else flip();
+            }}
+          >
+            <Svg d={FOLDER} size={15} sw={1.8} />
+            <span className="lbl">{n.name}</span>
+          </a>
+        </div>
+        {exp && (
+          <div className="kids">
+            {flowItems(n)}
+            {n.kids?.map((k) => row(k))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const name = (p: Project) => p.info?.name || p.name;
   return (
     <aside className={`side${rail ? ' rail' : ''}`}>
       <div className="sh">
-        <select
-          aria-label="Project"
-          value={project ?? ''}
-          onChange={(e) => go({ project: e.target.value })}
-        >
-          {!project && <option value="">Pick a project</option>}
-          {(projects ?? []).map((p) => (
-            <option key={p.name}>{p.name}</option>
-          ))}
-        </select>
+        <Select
+          label="Project"
+          value={project}
+          placeholder="Pick a project"
+          options={(projects ?? []).map((p) => ({ value: p.name, label: name(p) }))}
+          onChange={(p) => go({ project: p })}
+        />
       </div>
-      {project && (
-        <nav className="tree" aria-label="Views in this project">
-          <Item to={{ project }} on={onSystem} tone="sys" label="System" />
-          {scopes.length > 0 && <div className="sec">Scopes</div>}
-          {scopes.map((scope) => {
-            const exp = expanded.includes(scope);
-            return (
-              <div key={scope} className={`scope${scope === route.scope ? ' cur' : ''}`}>
-                <button
-                  className="fold"
-                  title={scope}
-                  aria-expanded={exp}
-                  onClick={() => {
-                    if (rail) toggle();
-                    setOpen({ ...open, [scope]: rail || !exp });
-                  }}
-                >
-                  <Svg d={FOLDER} size={15} sw={1.8} />
-                  <span className="lbl">{scope}</span>
-                  <span className="chev" aria-hidden="true">
-                    <Svg d={CHEVRON} size={14} />
-                  </span>
-                </button>
-                {exp && (
-                  <div className="kids">
-                    <Item
-                      to={{ project, scope }}
-                      on={scope === route.scope && (route.view ?? OVERVIEW) === OVERVIEW}
-                      tone="ov"
-                      label="Overview"
-                    />
-                    {(flows[`${project}/${scope}`] ?? []).map((f) => (
-                      <Item
-                        key={f.id}
-                        to={{ project, scope, view: f.id }}
-                        on={scope === route.scope && route.view === f.id}
-                        tone={f.tone}
-                        label={f.title}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {project && tree && (
+        <nav className="tree" aria-label="Folders in this project">
+          <Item
+            to={{ project }}
+            on={!here && !route.flow}
+            tone={tree.entry?.[0] === 'page' ? 'page' : tree.entry?.[0] === 'map' ? 'map' : 'sys'}
+            label={tree.title || projects?.find((p) => p.name === project)?.info?.name || project}
+          />
+          {flowItems(tree)}
+          {tree.kids?.map((k) => row(k))}
         </nav>
       )}
       <div className="sf">
@@ -213,16 +326,46 @@ export function Sidebar() {
   );
 }
 
-export function TopBar({ crumbs, children }: { crumbs?: string[]; children?: ReactNode }) {
-  const { route } = useNav();
-  const trail = crumbs ?? [route.project ?? 'codewalk'];
+// the route's folders and file, then the view's own crumbs; ancestors are links
+export function TopBar({ crumbs = [], children }: { crumbs?: string[]; children?: ReactNode }) {
+  const { route, tree, go } = useNav();
+  const trail: { label: string; to?: Route }[] = [];
+  if (route.project) {
+    trail.push({ label: tree?.title || route.project, to: { project: route.project } });
+    const parts = route.path ? route.path.split('/') : [];
+    parts.forEach((_, i) => {
+      const path = parts.slice(0, i + 1).join('/');
+      const n = tree && find(tree, path);
+      trail.push({
+        label:
+          (n && n.path === path && (n.kind === 'dir' ? n.name : n.title || n.name)) || parts[i],
+        to: routeTo(route.project!, path),
+      });
+    });
+    if (route.as) trail[trail.length - 1].to = { ...trail[trail.length - 1].to, as: route.as };
+  } else trail.push({ label: 'codewalk' });
+  for (const c of crumbs) trail.push({ label: c });
   return (
     <header>
       <nav className="crumbs" aria-label="Breadcrumb">
         {trail.map((c, i) => (
           <Fragment key={i}>
             {i > 0 && <span aria-hidden="true">›</span>}
-            {i === trail.length - 1 ? <b>{c}</b> : <span>{c}</span>}
+            {i === trail.length - 1 || !c.to ? (
+              <b title={c.label}>{c.label}</b>
+            ) : (
+              <a
+                href={hrefOf(c.to)}
+                title={c.label}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey) return;
+                  e.preventDefault();
+                  go(c.to!);
+                }}
+              >
+                {c.label}
+              </a>
+            )}
           </Fragment>
         ))}
       </nav>
@@ -232,7 +375,28 @@ export function TopBar({ crumbs, children }: { crumbs?: string[]; children?: Rea
   );
 }
 
-type Tone = 'sys' | 'ov' | 'go' | 'you';
+// a folder with both index.html and index.map.json switches between them
+export function EntryToggle({ node, on }: { node: TreeNode; on: 'page' | 'map' }) {
+  const { route, go } = useNav();
+  if (!(node.entry?.includes('page') && node.entry.includes('map'))) return null;
+  return (
+    <div className="seg" role="group" aria-label="Show">
+      {(['page', 'map'] as const).map((k) => (
+        <button
+          key={k}
+          className={k === on ? 'on' : ''}
+          aria-pressed={k === on}
+          onClick={() => k !== on && go({ project: route.project, path: node.path, as: k })}
+        >
+          <Svg d={k === 'page' ? PAGE : MAP} size={14} />
+          {k === 'page' ? 'Page' : 'Map'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type Tone = 'sys' | 'ov' | 'go' | 'you' | 'page' | 'map';
 
 export function PatternsButton({ n, onOpen }: { n: number; onOpen(): void }) {
   if (!n) return null;

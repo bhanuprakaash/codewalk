@@ -24,6 +24,12 @@ const ICONS: Record<string, string> = {
   check: 'M3 8.5l3.2 3.2L13 4.8',
   cross: 'M4 4l8 8M12 4L4 12',
   arrow: 'M2.5 8h10M9 4.5L12.5 8 9 11.5',
+  client: 'M3 3.5h10v7H3z M1.5 12.5h13',
+  lb: 'M1.5 8H6 M6 8l4-4.5h4 M6 8h8 M6 8l4 4.5h4',
+  cache: 'M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z',
+  cdn: `${ring(8, 8, 6)} M2 8h12 M8 2c-2.2 2-2.2 10 0 12 M8 2c2.2 2 2.2 10 0 12`,
+  worker: `${ring(8, 8, 2.2)} M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.4 3.4l1.4 1.4 M11.2 11.2l1.4 1.4 M3.4 12.6l1.4-1.4 M11.2 4.8l1.4-1.4`,
+  topic: 'M2 3.2c2-1 4-1 6 .6v10c-2-1.6-4-1.6-6-.6z M14 3.2c-2-1-4-1-6 .6v10c2-1.6 4-1.6 6-.6z',
 };
 
 const BY_KIND: Record<string, string> = {
@@ -34,6 +40,8 @@ const BY_KIND: Record<string, string> = {
   output: 'check',
   exit: 'cross',
   package: 'si:go',
+  db: 'database',
+  external: 'outside',
 };
 const LETTER: Record<string, string> = { func: 'ƒ', type: 'T' };
 

@@ -28,7 +28,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json | system.json>")
+		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json | system.json | *.map.json>")
 	}
 	switch args[0] {
 	case "serve":
@@ -85,7 +85,22 @@ func scanCmd(args []string) error {
 // storyboard or system problem is not wrapped in "codewalk:".
 func validate(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: codewalk validate <storyboard.json | system.json>")
+		return errors.New("usage: codewalk validate <storyboard.json | system.json | *.map.json>")
+	}
+	if strings.HasSuffix(args[0], ".map.json") {
+		errs, err := walk.CheckMap(args[0])
+		if err != nil {
+			return err
+		}
+		for _, e := range errs {
+			fmt.Println("ERROR: " + e)
+		}
+		if len(errs) > 0 {
+			fmt.Printf("\n%d error(s)\n", len(errs))
+			os.Exit(1)
+		}
+		fmt.Println("ok: the map is valid (maps need no build step)")
+		return nil
 	}
 	res, err := walk.Build(args[0])
 	if err != nil {

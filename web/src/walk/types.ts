@@ -9,7 +9,16 @@ export type Kind =
   | 'exit'
   | 'ui'
   | 'service'
-  | 'package';
+  | 'package'
+  | 'client'
+  | 'lb'
+  | 'cache'
+  | 'db'
+  | 'queue'
+  | 'cdn'
+  | 'worker'
+  | 'external'
+  | 'topic';
 export type Pt = { x: number; y: number };
 export type Lines = [number, number][];
 
@@ -57,6 +66,10 @@ export interface WalkNode {
   icon?: string;
   types?: string[];
   drill?: string;
+  pros?: string[];
+  cons?: string[];
+  body?: string;
+  link?: string;
 }
 export interface Method {
   name: string;
@@ -99,6 +112,8 @@ export interface Edge {
   label?: string;
   cond?: string;
   skip?: string;
+  proto?: string;
+  what?: string;
   at?: CodeBlock & { path: string; hl: Lines };
 }
 export interface Value {
@@ -108,7 +123,7 @@ export interface Value {
   dir?: 'in' | 'out';
   note?: string;
   value: unknown;
-  from: { kind: 'captured' | 'constructed'; ref: string; at?: string };
+  from?: { kind: 'captured' | 'constructed'; ref: string; at?: string };
 }
 export interface Goroutine {
   id: number;
@@ -131,6 +146,24 @@ export interface Step {
   stop?: { path: string; line: number } | null;
   values: Value[];
   state?: DelveState | null;
+  // map steps only
+  back?: boolean;
+  carries?: string;
+  tag?: string;
+  tone?: Tone;
+  ms?: number;
+  held?: Held[];
+  total?: number;
+}
+export type Tone = 'ok' | 'warn' | 'bad' | 'info';
+// what the system holds after a map step, carried forward from the steps before it
+export interface Held {
+  of?: string;
+  name: string;
+  value: unknown;
+  note?: string;
+  chg?: boolean;
+  gone?: boolean;
 }
 export interface WhatIf {
   id: string;

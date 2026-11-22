@@ -59,6 +59,7 @@ export function LinkTypes({ text }: { text: string }) {
 export function WhyBox({ why }: { why?: Why }) {
   if (!why) return null;
   const s = why.source;
+  if (s.kind === 'map') return <div className="why">{why.text}</div>;
   return (
     <div className="why">
       {why.text}
@@ -163,4 +164,36 @@ export function Rows({
       )}
     </>
   );
+}
+
+const TAGS = new Set(['P', 'B', 'I', 'EM', 'STRONG', 'CODE', 'PRE', 'UL', 'OL', 'LI', 'BR', 'A']);
+
+// keeps the few tags a map node's body may use; drops every attribute but a link's http(s) href
+function clean(node: Node) {
+  for (const kid of [...node.childNodes]) {
+    if (kid.nodeType === Node.TEXT_NODE) continue;
+    if (kid.nodeType !== Node.ELEMENT_NODE) {
+      kid.remove();
+      continue;
+    }
+    const el = kid as Element;
+    clean(el);
+    if (!TAGS.has(el.tagName)) {
+      el.replaceWith(...(['SCRIPT', 'STYLE'].includes(el.tagName) ? [] : el.childNodes));
+      continue;
+    }
+    const href = el.getAttribute('href');
+    for (const a of [...el.attributes]) el.removeAttribute(a.name);
+    if (el.tagName === 'A' && href && /^https?:\/\//.test(href)) {
+      el.setAttribute('href', href);
+      el.setAttribute('target', '_blank');
+      el.setAttribute('rel', 'noopener noreferrer');
+    }
+  }
+}
+
+export function Html({ html }: { html: string }) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  clean(doc.body);
+  return <div className="html" dangerouslySetInnerHTML={{ __html: doc.body.innerHTML }} />;
 }

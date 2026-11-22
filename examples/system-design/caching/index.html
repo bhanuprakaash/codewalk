@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Caching</title>
+    <style>
+      /* codewalk reading page. Copy this file; keep the style block as it is and write in <body>. */
+      @font-face {
+        font-family: 'Inter Variable';
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(/fonts/inter.woff2) format('woff2');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-weight: 100 800;
+        font-display: swap;
+        src: url(/fonts/jetbrains-mono.woff2) format('woff2');
+      }
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --panel2: #f3f3f5;
+        --line: #ececef;
+        --text: #1d1d1f;
+        --muted: #6e6e73;
+        --faint: #a1a1a6;
+        --focus: #0a6fc2;
+        --focus-soft: rgba(10, 111, 194, 0.08);
+        --k: #8b3fd1;
+        --c: #8f97a3;
+        --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #0e1116;
+        --panel2: #161b22;
+        --line: #262d37;
+        --text: #e6e9ee;
+        --muted: #8b96a5;
+        --faint: #6b7686;
+        --focus: #7cb6ff;
+        --focus-soft: rgba(124, 182, 255, 0.1);
+        --k: #c9a0ff;
+        --c: #66727f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme]) {
+          color-scheme: dark;
+          --bg: #0e1116;
+          --panel2: #161b22;
+          --line: #262d37;
+          --text: #e6e9ee;
+          --muted: #8b96a5;
+          --faint: #6b7686;
+          --focus: #7cb6ff;
+          --focus-soft: rgba(124, 182, 255, 0.1);
+          --k: #c9a0ff;
+          --c: #66727f;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px 96px;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        margin: 6px 0 18px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        margin: 52px 0 14px;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 32px 0 8px;
+      }
+      p,
+      ul,
+      ol {
+        margin: 0 0 18px;
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      a {
+        color: var(--focus);
+        text-decoration: none;
+        border-bottom: 1px solid color-mix(in srgb, var(--focus) 30%, transparent);
+      }
+      a:hover {
+        border-bottom-color: var(--focus);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--panel2);
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+      .where {
+        font-size: 13px;
+        color: var(--muted);
+        letter-spacing: 0.01em;
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.6;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+      .toc {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 20px 6px;
+        margin: 0 0 36px;
+        font-size: 16px;
+      }
+      .toc b {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .toc ol {
+        padding-left: 22px;
+        margin: 0 0 10px;
+      }
+      .toc a {
+        border: 0;
+      }
+      .step {
+        flex: none;
+        display: inline-grid;
+        place-items: center;
+        min-width: 28px;
+        height: 28px;
+        padding: 0 6px;
+        border-radius: 8px;
+        background: var(--focus-soft);
+        color: var(--focus);
+        font-size: 14px;
+        font-weight: 600;
+        transform: translateY(-2px);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.55;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin: 0 0 22px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+      pre .c {
+        color: var(--c);
+      }
+      pre .k {
+        color: var(--k);
+        font-weight: 600;
+      }
+      .note {
+        border-left: 3px solid var(--focus);
+        background: var(--focus-soft);
+        border-radius: 0 10px 10px 0;
+        padding: 12px 16px;
+        margin: 0 0 22px;
+      }
+      .note.aside {
+        border-left-color: var(--faint);
+        background: var(--panel2);
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .note > :last-child {
+        margin-bottom: 0;
+      }
+      .tbl {
+        overflow-x: auto;
+        margin: 0 0 22px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 56px 0 0;
+      }
+      hr + h2 {
+        margin-top: 28px;
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 28px 16px 64px;
+          font-size: 17px;
+        }
+        h1 {
+          font-size: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="where">System design · Caching</div>
+    <h1>Caching</h1>
+    <p class="lead">A cache keeps a copy of data in something faster than where it normally lives. Done well, it removes most of your database load and most of your latency. Done badly, it serves wrong answers quickly. This page covers why, where, and how; the Map tab lets you play every flow step by step.</p>
+
+    <nav class="toc">
+      <b>Contents</b>
+      <ol>
+        <li><a href="#why">Why cache at all</a></li>
+        <li><a href="#where">Where caches live</a></li>
+        <li><a href="#ratio">Hit ratio and average latency</a></li>
+        <li><a href="#read">Read patterns</a></li>
+        <li><a href="#write">Write patterns</a></li>
+        <li><a href="#invalidate">Invalidation</a></li>
+        <li><a href="#consistency">Consistency caveats</a></li>
+        <li><a href="#map">Play it on the map</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="why"><span class="step">1</span>Why cache at all</h2>
+    <p>Different storage layers differ by orders of magnitude in access time. The numbers below are rough, but the ratios are what matter.</p>
+    <div class="tbl">
+      <table>
+        <tr><th>Operation</th><th>Typical time</th><th>Relative</th></tr>
+        <tr><td>Read from process memory</td><td>~100 ns</td><td>1x</td></tr>
+        <tr><td>Redis round trip, same datacenter</td><td>0.2 to 0.5 ms</td><td>~2,000 to 5,000x</td></tr>
+        <tr><td>SSD random read</td><td>~0.1 ms</td><td>~1,000x</td></tr>
+        <tr><td>Database query, indexed lookup</td><td>1 to 10 ms</td><td>~10,000 to 100,000x</td></tr>
+        <tr><td>Database query under load, joins, cold pages</td><td>10 to 100+ ms</td><td>far more</td></tr>
+        <tr><td>Cross-continent round trip</td><td>~150 ms</td><td>~1,500,000x</td></tr>
+      </table>
+    </div>
+    <p>Notice that even a fast distributed cache is dominated by the network round trip, not the memory access. It is still 5 to 50 times quicker than a database query. The second benefit is capacity: if 95% of reads are answered by the cache, the database serves one request in twenty, so a database that was at its limit now has room to grow.</p>
+    <div class="note"><p>A cache works because of skew. A small share of keys (popular users, hot products, today's front page) receives most of the reads. Caching that small hot set captures most of the benefit.</p></div>
+
+    <h2 id="where"><span class="step">2</span>Where caches live</h2>
+    <p>A request can pass through many caches. Each one is closer to the user than the last, and each one adds a place for data to be stale.</p>
+    <pre><span class="c"># nearest to the user first</span>
+Browser cache  →  CDN edge  →  Reverse proxy  →  App in-process  →  Redis / Memcached  →  DB buffer pool  →  disk
+  (HTTP headers)   (static,      (nginx,          (local map,         (shared by all       (hot pages         (source
+                    cacheable     Varnish)         per instance)        app servers)         in RAM)            of truth)
+                    responses)</pre>
+    <div class="tbl">
+      <table>
+        <tr><th>Layer</th><th>What it holds</th><th>Watch out for</th></tr>
+        <tr><td>Browser</td><td>Responses controlled by <code>Cache-Control</code> and <code>ETag</code></td><td>You cannot purge it. Version your URLs.</td></tr>
+        <tr><td>CDN</td><td>Static files and cacheable pages near the user</td><td>Purges are global and slow.</td></tr>
+        <tr><td>Reverse proxy</td><td>Whole HTTP responses</td><td>Varying by cookie or header explodes the key space.</td></tr>
+        <tr><td>In-process</td><td>Objects in the app's own heap, no network at all</td><td>Each instance has its own copy; they disagree after a write.</td></tr>
+        <tr><td>Distributed cache</td><td>Application data keyed by you (Redis, Memcached)</td><td>One more system; a network hop per call.</td></tr>
+        <tr><td>DB buffer pool</td><td>Hot table and index pages</td><td>Automatic, but size and cold starts matter.</td></tr>
+      </table>
+    </div>
+    <p>This page and the map focus on the distributed cache, because it is the one you design. The same ideas (key, TTL, eviction, invalidation) apply at every layer.</p>
+
+    <h2 id="ratio"><span class="step">3</span>Hit ratio and average latency</h2>
+    <p>The <b>hit ratio</b> is hits divided by total lookups. Average latency is a weighted mix of the fast and the slow path:</p>
+    <pre>avg = hit_ratio × t_hit  +  (1 − hit_ratio) × t_miss
+
+<span class="c"># t_hit ≈ 1 ms (Redis path), t_miss ≈ 14 ms (Redis GET + SELECT + SET)</span>
+hit ratio 50%:   0.50 × 1 + 0.50 × 14  =  7.5  ms
+hit ratio 90%:   0.90 × 1 + 0.10 × 14  =  2.3  ms
+hit ratio 95%:   0.95 × 1 + 0.05 × 14  =  1.65 ms
+hit ratio 99%:   0.99 × 1 + 0.01 × 14  =  1.13 ms</pre>
+    <p>The same ratio governs database load. At 10,000 reads per second:</p>
+    <pre>hit ratio 90%  →  1,000 queries/s reach the database
+hit ratio 95%  →    500 queries/s
+hit ratio 99%  →    100 queries/s</pre>
+    <div class="note"><p>Going from 90% to 99% looks like a small gain, but it cuts database load tenfold. Look at the <em>miss</em> ratio, not the hit ratio, when sizing the database. This is also why a cache outage hurts so much: 95% to 0% multiplies database load by twenty.</p></div>
+    <p>Redis reports <code>keyspace_hits</code> and <code>keyspace_misses</code> in <code>INFO stats</code>. Watch them, together with <code>evicted_keys</code>. A falling hit ratio with rising evictions means the cache is too small for your working set.</p>
+
+    <h2 id="read"><span class="step">4</span>Read patterns</h2>
+    <h3>Cache-aside (lazy loading)</h3>
+    <p>The application manages the cache itself. It checks the cache, and on a miss loads from the database and stores the result. Only data that is actually requested is cached, and a cache failure just means misses.</p>
+    <pre><span class="k">def</span> get_user(id):
+    v = redis.get(f"user:{id}")             <span class="c"># 1. ask the cache</span>
+    <span class="k">if</span> v <span class="k">is not</span> None: <span class="k">return</span> decode(v)      <span class="c">#    hit</span>
+    row = db.query("SELECT * FROM users WHERE id = %s", id)   <span class="c"># 2. miss: read truth</span>
+    redis.set(f"user:{id}", encode(row), ex=300)              <span class="c"># 3. fill, with a TTL</span>
+    <span class="k">return</span> row</pre>
+    <pre>  client ─► app ─► Redis ── hit ──────────────► reply        (~1 ms)
+                    │
+                    └── miss ─► Postgres ─► app ─► SET ─► reply (~14 ms)</pre>
+    <h3>Read-through</h3>
+    <p>The cache itself loads missing data. The application only talks to the cache, and the cache has a loader function (or sits in front of the database as a library, a proxy or a managed service). The flow is the same as cache-aside, but the logic lives in one place instead of in every caller. Plain Redis does not do this; libraries and some products do.</p>
+    <div class="note aside"><p>Cache-aside is the default with Redis. Its cost is that every caller must remember the pattern, and the first request after expiry always pays the miss.</p></div>
+
+    <h2 id="write"><span class="step">5</span>Write patterns</h2>
+    <pre><span class="c"># write-through: app writes cache and DB together</span>
+app ─► cache ─► DB            <span class="c"># write completes after both</span>
+
+<span class="c"># write-behind (write-back): DB is updated later</span>
+app ─► cache ─ ack ─► app     <span class="c"># fast ack</span>
+          └──── (async, batched) ─► DB
+
+<span class="c"># write-around: skip the cache on write</span>
+app ─► DB                     <span class="c"># cache filled on the next read</span></pre>
+    <div class="tbl">
+      <table>
+        <tr><th>Pattern</th><th>Write latency</th><th>Read after write</th><th>Risk</th></tr>
+        <tr><td><b>Write-through</b></td><td>Slower: two writes in the path</td><td>Always fresh</td><td>Caches data that may never be read; the two writes can still disagree if one fails</td></tr>
+        <tr><td><b>Write-behind</b></td><td>Fastest: ack from memory</td><td>Fresh from the cache</td><td>Data loss if the cache dies before flushing; ordering and retry complexity</td></tr>
+        <tr><td><b>Write-around</b></td><td>Normal DB write</td><td>First read misses</td><td>Stale if an old copy already exists and is not invalidated</td></tr>
+        <tr><td><b>Cache-aside + invalidate</b></td><td>DB write plus one DEL</td><td>First read misses, then fresh</td><td>Small race windows (see below)</td></tr>
+      </table>
+    </div>
+    <p>Write-behind is the one to be careful with: while data sits only in the cache, the cache is the source of truth, and a crash loses it. Use it for data you can afford to lose (counters, view counts), or with a durable log underneath.</p>
+
+    <h2 id="invalidate"><span class="step">6</span>Invalidation</h2>
+    <p>"There are only two hard things in computer science: cache invalidation and naming things." When the database changes, the cached copy must go. You have two choices.</p>
+    <ul>
+      <li><b>Update on write:</b> write the new value into the cache after the DB write.</li>
+      <li><b>Delete on write:</b> remove the key and let the next read reload it. Usually preferred.</li>
+    </ul>
+    <p>Why delete wins: with update-on-write, two writers can interleave so the cache ends up with the older value. Writer A updates the DB to v1, writer B updates it to v2, but B's cache write lands first and A's lands last. The DB says v2, the cache says v1, and nothing will fix that until the TTL. A delete has no such order problem: whoever deletes last, the key is gone, and the next reader fetches whatever the database says. Update-on-write also caches values that may never be read, and may require recomputing derived objects.</p>
+    <pre>update on write                          delete on write
+  A: DB=v1                                 A: DB=v1
+  B: DB=v2                                 B: DB=v2
+  B: SET cache=v2                          B: DEL key
+  A: SET cache=v1   ← stale until TTL      A: DEL key      ← cache empty, correct</pre>
+    <p>Even delete-on-write has a race. A reader that misses can read the old row, stall, and write it into the cache after the writer's delete has already run:</p>
+    <pre>reader:  GET → miss ─► SELECT (sees v1) ·····························► SET cache=v1
+writer:                           UPDATE → v2 ─► DEL key (nothing there)
+                                                                    cache holds v1, DB has v2</pre>
+    <p>It is rare, because it requires a reader slower than a writer, but at scale it will happen. Defenses:</p>
+    <ul>
+      <li><b>TTL as a safety net.</b> Every key gets an expiry (<code>SET key val EX 300</code>), so even a missed invalidation heals itself. Pick the TTL by how stale the data may be.</li>
+      <li><b>Delayed double delete:</b> delete again after a short delay, longer than a slow read.</li>
+      <li><b>Versioned values:</b> store the row version and only overwrite with a newer one.</li>
+      <li><b>CDC-driven invalidation:</b> delete from the database's change log, with retries, so no code path can forget.</li>
+    </ul>
+    <div class="note"><p>Order matters: write the database first, then delete the key. Deleting first lets a concurrent reader refill the old value before the new one is committed. The map has this as a what-if on the write flow.</p></div>
+
+    <h2 id="consistency"><span class="step">7</span>Consistency caveats</h2>
+    <p>A cache makes your system <em>eventually consistent</em> at best. Three things to keep in mind:</p>
+    <ul>
+      <li><b>Staleness is bounded by the TTL.</b> If you cache for 5 minutes, someone will see a 5-minute-old value in the worst case. Decide that number on purpose.</li>
+      <li><b>Read your own writes.</b> A user who edits their profile and reloads expects to see the change. Delete-on-write gives this for the writing path; with replicas or a CDN in between, it can break.</li>
+      <li><b>Multiple layers multiply staleness.</b> A browser cache over a CDN over Redis can each add its own delay.</li>
+    </ul>
+    <p>Some data should not be cached at all: balances being decremented, inventory counts at checkout, anything where a stale read causes a wrong action rather than a slightly old page. For those, read the database, or use the cache only as a hint and re-check at commit time.</p>
+    <div class="note aside"><p>The cache also adds failure modes: stampedes when a hot key expires, outages that shift all load onto the database, and cold starts. All three are flows on the map.</p></div>
+
+    <h2 id="map"><span class="step">8</span>Play it on the map</h2>
+    <p>Open the <b>Map</b> tab. It shows the client, app server, Redis and Postgres, with a change stream for async invalidation. Step through these flows and watch the Redis and Postgres state change:</p>
+    <ul>
+      <li><b>Read · cache hit</b> and <b>Read · cache miss</b>, with latency totals (about 1 ms against about 14 ms). The miss flow has what-ifs for a <b>stampede</b> and its fix.</li>
+      <li><b>Write · update DB, delete key</b>, with what-ifs for the <b>stale-read race</b>, a <b>failed DEL</b>, <b>wrong ordering</b> and <b>CDC invalidation</b>.</li>
+      <li><b>Redis is down</b>: timeouts, the circuit breaker and the database overload cascade.</li>
+      <li><b>Cache full · LRU eviction</b>, which continues on the <a href="eviction.html">eviction and expiry</a> page.</li>
+    </ul>
+
+    <hr />
+    <h2>Summary</h2>
+    <ul>
+      <li>Caches exist for latency and for protecting the database; look at the miss ratio to size the database.</li>
+      <li>Cache-aside is the default: GET, on miss SELECT then SET with a TTL.</li>
+      <li>On writes, update the database first, then delete the key; do not update the cache.</li>
+      <li>Always set a TTL. It bounds staleness when invalidation fails or races.</li>
+      <li>Plan for the cache being gone: tight timeouts, a circuit breaker, and a database that survives the extra load.</li>
+      <li>Next: <a href="eviction.html">how keys leave the cache</a> (eviction and expiry).</li>
+    </ul>
+  </body>
+</html>
