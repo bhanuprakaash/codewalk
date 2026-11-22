@@ -2156,12 +2156,6 @@ pre.diff .hunk {
     max-height: 30vh;
     overflow-y: auto;
   }
-  #legend {
-    bottom: 84px;
-  }
-  #hint {
-    display: none;
-  }
 }
 
 .held-inline {
@@ -2170,10 +2164,57 @@ pre.diff .hunk {
 .walk.panel-open #summary {
   display: none;
 }
-@media (max-width: 700px) {
+/* below 1600 px the state column folds into the step card, so the canvas keeps half the width */
+@media (max-width: 1600px) {
   .walk.tracing #state {
     width: 0;
+    border: 0;
   }
+  .held-inline {
+    display: block;
+    margin-top: 18px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
+}
+@media (max-width: 1100px) {
+  #panel.open {
+    width: max(320px, min(400px, 42vw));
+    min-width: 0;
+  }
+  #pbody,
+  #panelAsk {
+    min-width: 320px;
+  }
+}
+/* the canvas's own width decides where its controls go, so they never overlap */
+#canvasWrap {
+  container-type: inline-size;
+}
+@container (max-width: 760px) {
+  #tracebar {
+    left: 12px;
+    right: 72px;
+    transform: none;
+    max-width: none;
+    gap: 8px;
+  }
+  #tracebar .t {
+    flex: 1 1 auto;
+  }
+  #tracebar:has(.go) {
+    right: auto;
+    max-width: calc(100% - 84px);
+  }
+  #legend {
+    left: 12px;
+    bottom: 84px;
+  }
+  #hint {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
   #panel.open {
     position: absolute;
     z-index: 5;
@@ -2186,11 +2227,5 @@ pre.diff .hunk {
   }
   #body {
     position: relative;
-  }
-  .held-inline {
-    display: block;
-    margin-top: 18px;
-    padding-top: 6px;
-    border-top: 1px solid var(--line);
   }
 }

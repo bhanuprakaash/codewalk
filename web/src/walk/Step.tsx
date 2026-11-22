@@ -128,9 +128,9 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
           <b>Notice</b> {s.note}
         </div>
       )}
-      {s.held && (
+      {(s.held || trace.some((x) => x.state)) && (
         <div className="held-inline">
-          <HeldColumn step={s} />
+          {s.held ? <HeldColumn step={s} /> : <StateColumn trace={trace} tr={i} />}
         </div>
       )}
       {forks.length > 0 && (
