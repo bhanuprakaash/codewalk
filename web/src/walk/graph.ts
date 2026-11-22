@@ -25,6 +25,15 @@ export const KIND: Record<Kind, { name: string }> = {
   ui: { name: 'UI' },
   service: { name: 'Service' },
   package: { name: 'Package' },
+  client: { name: 'Client' },
+  lb: { name: 'Load balancer' },
+  cache: { name: 'Cache' },
+  db: { name: 'Database' },
+  queue: { name: 'Queue' },
+  cdn: { name: 'CDN' },
+  worker: { name: 'Worker' },
+  external: { name: 'External' },
+  topic: { name: 'Topic' },
 };
 export const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;

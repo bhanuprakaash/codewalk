@@ -5,7 +5,7 @@ import { Canvas, type CanvasHandle } from './Canvas';
 import { SeenButton, useChanges } from './changes';
 import { EdgeCard, FuncCard, MethodCard, NodeCard, TypeCard } from './cards';
 import { WalkCtx, type Goto } from './ctx';
-import { AskButton, PatternsButton, TopBar } from './Header';
+import { AskButton, EntryToggle, PatternsButton, TopBar } from './Header';
 import { layoutOf, neighbourhood } from './graph';
 import { valueText } from './Json';
 import { OVERVIEW, initNav, reducer, traceOf, workflowOf, type Entry } from './nav';
@@ -13,24 +13,31 @@ import { OrphansCard, orphans, type Notes } from './notes';
 import { PatternsCard } from './patterns';
 import { Overview } from './Overview';
 import { Panel } from './Panel';
-import { StateColumn, StepCard } from './Step';
+import { HeldColumn, StateColumn, StepCard } from './Step';
 import { patchUser } from './user';
-import { useNav } from '../route';
+import type { TreeNode } from '../route';
 import type { Pt, User, Walk, Workflow } from './types';
 
-const startOf = (wf: Workflow, user: User): Record<string, Pt> => {
-  const saved = user.positions?.[wf.id];
-  return { ...wf.pos, ...(saved?.layout === layoutOf(wf) ? saved.nodes : {}) };
+// a map keeps one layout for all its flows, under "map"; a code walk keeps one per workflow
+const startOf = (wf: Workflow, user: User, whole?: Workflow): Record<string, Pt> => {
+  const saved = user.positions?.[whole ? whole.id : wf.id];
+  return { ...wf.pos, ...(saved?.layout === layoutOf(whole ?? wf) ? saved.nodes : {}) };
 };
 
 export function Explorer({
   walk,
+  whole,
+  node,
+  onLink,
   user,
   query,
   view,
   onView,
 }: {
   walk: Walk;
+  whole?: Workflow;
+  node?: TreeNode;
+  onLink?(link: string): void;
   user: User;
   query: string;
   view: string;
@@ -44,18 +51,19 @@ export function Explorer({
   const canvas = useRef<CanvasHandle>(null);
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { route } = useNav();
+  const code = !!walk.repo;
   const asked = useAsk(query);
-  const changed = useChanges(query);
+  const changed = useChanges(code ? query : null);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
   const lost = orphans(walk, notes);
 
-  const wf = workflowOf(walk, s.view);
+  const flow = workflowOf(walk, s.view);
+  const wf = flow ?? whole ?? null;
   const ov = !wf;
   const trace = wf ? traceOf(wf, s.wi) : [];
   const whatif = wf?.whatifs?.find((x) => x.id === s.wi);
   const step = s.tr >= 0 ? (trace[s.tr] ?? null) : null;
-  const tracing = !!step && trace.some((x) => x.state);
+  const tracing = !!step && trace.some((x) => x.state || x.held?.length);
   const cur: Entry | undefined = s.hist[s.hi];
   const selected = s.open && cur ? cur : null;
 
@@ -84,6 +92,7 @@ export function Explorer({
     step: (i, wi) => dispatch({ t: 'trace', i, wi }),
     whatif: (id) => dispatch({ t: 'trace', i: 0, wi: id }),
     patterns: () => open({ k: 'patterns', id: '' }),
+    link: onLink,
   };
   const stop = () => {
     if (!s.wi) canvas.current?.fitAll();
@@ -122,11 +131,12 @@ export function Explorer({
     });
   };
   const moved = (nodes: Record<string, Pt> | null) => {
+    const key = (whole ?? wf!).id;
     const positions = { ...userDoc.current.positions };
-    const entry = nodes ? { layout: layoutOf(wf!), nodes } : null;
-    if (entry) positions[wf!.id] = entry;
-    else delete positions[wf!.id];
-    save({ ...userDoc.current, positions }, { positions: { [wf!.id]: entry } });
+    const entry = nodes ? { layout: layoutOf(whole ?? wf!), nodes } : null;
+    if (entry) positions[key] = entry;
+    else delete positions[key];
+    save({ ...userDoc.current, positions }, { positions: { [key]: entry } });
   };
   const setNote = (key: string, text: string | null) => {
     const next = { ...notes };
@@ -146,7 +156,7 @@ export function Explorer({
       const values = step.values
         .map(
           (v) =>
-            `${v.dir ? v.dir + ' ' : ''}${v.name} (${v.type}, ${v.from.kind}) = ${valueText(v.value).slice(0, 400)}`,
+            `${v.dir ? v.dir + ' ' : ''}${v.name} (${v.type}${v.from ? ', ' + v.from.kind : ''}) = ${valueText(v.value).slice(0, 400)}`,
         )
         .join('; ');
       l.push(
@@ -196,9 +206,10 @@ export function Explorer({
   return (
     <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
       <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
-        <TopBar crumbs={[route.scope!, wf?.title ?? 'Overview']}>
+        <TopBar crumbs={whole ? (flow ? [flow.title] : []) : [flow?.title ?? 'Overview']}>
+          {node && <EntryToggle node={node} on="map" />}
           <span className="meta">
-            <span className="sha">{walk.commit.slice(0, 7)}</span>
+            {code && <span className="sha">{walk.commit.slice(0, 7)}</span>}
             {walk.dirty ? ' · dirty' : ''}
             {saveFailed ? ' · could not save' : ''}
             {changed.error ? ` · ${changed.error}` : ''}
@@ -213,10 +224,13 @@ export function Explorer({
             n={walk.patterns?.length ?? 0}
             onOpen={() => open({ k: 'patterns', id: '' })}
           />
-          <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />
+          {code && <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />}
         </TopBar>
         <div id="body">
-          <aside id="state">{tracing && <StateColumn trace={trace} tr={s.tr} />}</aside>
+          <aside id="state">
+            {tracing &&
+              (step.held ? <HeldColumn step={step} /> : <StateColumn trace={trace} tr={s.tr} />)}
+          </aside>
           <div id="canvasWrap">
             {wf ? (
               <>
@@ -225,23 +239,34 @@ export function Explorer({
                   ref={canvas}
                   nodes={walk.nodes}
                   wf={wf}
-                  start={startOf(wf, userDoc.current)}
+                  start={startOf(wf, userDoc.current, whole)}
                   step={step}
                   stepKey={`${s.wi}:${s.tr}`}
                   selected={selected}
-                  onNode={(id) =>
-                    dispatch({ t: 'open', entry: { k: 'node', id }, untrace: s.tr >= 0 })
-                  }
+                  onNode={(id) => {
+                    const n = walk.nodes[id];
+                    if (n.link && n.kind === 'topic' && onLink) onLink(n.link);
+                    else dispatch({ t: 'open', entry: { k: 'node', id }, untrace: s.tr >= 0 });
+                  }}
                   onEdge={go.edge}
                   onMoved={moved}
                   marks={changed.res?.changes}
+                  inset={tracing ? 0 : 420}
                 />
                 <Legend
                   kinds={wf.nodes.map((id) => walk.nodes[id].kind)}
                   edges={wf.edges.map((e) => e.kind)}
                 />
-                {!tracing && <Summary key={wf.id} wf={wf} />}
+                {!tracing && (
+                  <Summary
+                    key={wf.id}
+                    wf={wf}
+                    flows={wf === whole ? walk.workflows : undefined}
+                    onFlow={show}
+                  />
+                )}
                 <Tracebar
+                  code={code}
                   walk={walk}
                   wf={wf}
                   whatif={whatif}
@@ -261,6 +286,7 @@ export function Explorer({
             count={s.hist.length}
             bodyKey={`${s.tab}:${JSON.stringify(cur)}`}
             tab={s.tab}
+            ask={code}
             subject={subject}
             onAsk={(q) => {
               dispatch({ t: 'tab', tab: 'ask' });

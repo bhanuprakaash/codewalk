@@ -3,6 +3,10 @@ import { KIND } from './graph';
 import { BoxIcon } from './icons';
 import type { Step, Walk, WhatIf, Workflow } from './types';
 
+export const Tag = ({ step }: { step: Step }) => (
+  <span className={`tag-pill ${step.tone ?? 'info'}`}>{step.tag}</span>
+);
+
 const EDGES: [string, string, string[]][] = [
   ['imports', 'Imports', ['imports']],
   ['call', 'Calls', ['call', 'calls']],
@@ -81,7 +85,15 @@ export function Legend({
   );
 }
 
-export function Summary({ wf }: { wf: Workflow }) {
+export function Summary({
+  wf,
+  flows,
+  onFlow,
+}: {
+  wf: Workflow;
+  flows?: Workflow[];
+  onFlow(id: string): void;
+}) {
   const [short, setShort] = useState(true);
   return (
     <div id="summary" className={short ? 'short' : ''}>
@@ -90,14 +102,33 @@ export function Summary({ wf }: { wf: Workflow }) {
         {wf.nodes.length} nodes · {wf.edges.length} connections
         {wf.trace.length ? ` · ${wf.trace.length} trace steps` : ''}
         {wf.whatifs?.length ? ` · ${wf.whatifs.length} what-ifs` : ''}
+        {flows?.length ? ` · ${flows.length} flows` : ''}
       </div>
-      <p>{wf.summary}</p>
-      <a onClick={() => setShort(!short)}>{short ? 'View more' : 'View less'}</a>
+      {wf.summary && <p>{wf.summary}</p>}
+      {wf.summary && (
+        <a className="more" onClick={() => setShort(!short)}>
+          {short ? 'View more' : 'View less'}
+        </a>
+      )}
+      {!!flows?.length && (
+        <div className="flows">
+          {flows.map((f) => (
+            <button key={f.id} className="flow" title={f.summary} onClick={() => onFlow(f.id)}>
+              <span className="pl" aria-hidden="true">
+                ▶
+              </span>
+              <span className="ft">{f.title}</span>
+              <span className="fn">{f.trace.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export function Tracebar({
+  code,
   walk,
   wf,
   whatif,
@@ -106,6 +137,7 @@ export function Tracebar({
   onTrace,
   onStop,
 }: {
+  code: boolean;
   walk: Walk;
   wf: Workflow;
   whatif: WhatIf | undefined;
@@ -119,10 +151,15 @@ export function Tracebar({
     return (
       <div id="tracebar">
         <button className="go" onClick={() => onTrace(0)}>
-          ▶ Trace a real run
+          ▶ {code ? 'Trace a real run' : 'Play the flow'}
         </button>
         <span className="n">
-          {wf.trace.length} steps · captured {wf.capturedAt || walk.capturedAt}
+          {wf.trace.length} steps
+          {code
+            ? ` · captured ${wf.capturedAt || walk.capturedAt}`
+            : wf.whatifs?.length
+              ? ` · ${wf.whatifs.length} what-if${wf.whatifs.length > 1 ? 's' : ''}`
+              : ''}
         </span>
       </div>
     );
@@ -140,6 +177,7 @@ export function Tracebar({
         {whatif && <span style={{ color: 'var(--data)' }}>what if {whatif.title} · </span>}
         {trace[tr].title}
       </span>
+      {trace[tr].tag && <Tag step={trace[tr]} />}
       <button title="Next (→)" onClick={() => onTrace(tr + 1)}>
         ▶
       </button>

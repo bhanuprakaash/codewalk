@@ -5,7 +5,7 @@ import { NoteSec, nodeKey } from './notes';
 import { useWalk } from './ctx';
 import { KIND } from './graph';
 import { BoxIcon } from './icons';
-import { Chip, LinkTypes, Rows, Sec, TypeLink, WhyBox } from './parts';
+import { Chip, Html, LinkTypes, Rows, Sec, TypeLink, WhyBox } from './parts';
 import type { Edge, EdgeKind, Method, WalkType } from './types';
 
 const isPublic = (name: string) => /^[A-Z]/.test(name);
@@ -82,6 +82,11 @@ export function NodeCard({ id }: { id: string }) {
           <p>{n.what}</p>
         </Sec>
       )}
+      {n.link && go.link && (
+        <a className="open-link" onClick={() => go.link!(n.link!)}>
+          Open {n.link.replace(/\/$/, '')} →
+        </a>
+      )}
       {n.sig && (
         <Sec h="In → out">
           <div className="sig">
@@ -107,8 +112,24 @@ export function NodeCard({ id }: { id: string }) {
       )}
       <NoteSec k={nodeKey(id, n.symbol)} />
       {n.why && (
-        <Sec h="Why it exists">
+        <Sec h={walk.repo ? 'Why it exists' : 'Why'}>
           <WhyBox why={n.why} />
+        </Sec>
+      )}
+      {!!(n.pros?.length || n.cons?.length) && (
+        <Sec h="Trade-offs">
+          <ul className="tradeoffs">
+            {n.pros?.map((x) => (
+              <li key={'+' + x} className="pro">
+                {x}
+              </li>
+            ))}
+            {n.cons?.map((x) => (
+              <li key={'-' + x} className="con">
+                {x}
+              </li>
+            ))}
+          </ul>
         </Sec>
       )}
       {recv && (
@@ -131,6 +152,11 @@ export function NodeCard({ id }: { id: string }) {
       {n.gotcha && (
         <Sec h="Watch out">
           <div className="gotcha">{n.gotcha}</div>
+        </Sec>
+      )}
+      {n.body && (
+        <Sec h="Notes">
+          <Html html={n.body} />
         </Sec>
       )}
       {group(ins, IN, 'from')}
@@ -348,8 +374,9 @@ export function EdgeCard({ id }: { id: string }) {
           </div>
         </div>
       </div>
+      {e.what && <p style={{ lineHeight: 1.6, margin: '0 0 4px' }}>{e.what}</p>}
       {steps.length > 0 && (
-        <Sec h="Data crossing here (real run)">
+        <Sec h={walk.repo ? 'Data crossing here (real run)' : 'Steps on this edge'}>
           {steps.map(([s, i]) => (
             <p key={i} style={{ marginBottom: 6 }}>
               <a onClick={() => go.step(i, null)}>
@@ -360,7 +387,7 @@ export function EdgeCard({ id }: { id: string }) {
         </Sec>
       )}
       {ifs.length > 0 && (
-        <Sec h="This branch in a real run">
+        <Sec h={walk.repo ? 'This branch in a real run' : 'What-ifs on this edge'}>
           {ifs.map((x) => (
             <p key={x.id} style={{ marginBottom: 8 }}>
               <button className="go" onClick={() => go.whatif(x.id)}>
@@ -383,9 +410,12 @@ export function EdgeCard({ id }: { id: string }) {
           <Code code={e.at} />
         </Sec>
       ) : (
-        <p className="empty">
-          This edge is not a line of Go code (it crosses into the UI, the provider or the database).
-        </p>
+        walk.repo && (
+          <p className="empty">
+            This edge is not a line of Go code (it crosses into the UI, the provider or the
+            database).
+          </p>
+        )
       )}
     </>
   );

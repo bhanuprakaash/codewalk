@@ -12,10 +12,11 @@ export interface Changes {
   changes: Record<string, Change>;
 }
 
-export function useChanges(query: string) {
+export function useChanges(query: string | null) {
   const [res, setRes] = useState<Changes | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (query === null) return;
     let live = true;
     fetch(`/api/changes?${query}`)
       .then(async (r) => {

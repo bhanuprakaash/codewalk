@@ -12,6 +12,7 @@ export interface Goto {
   step(i: number, wi?: string | null): void;
   whatif(id: string): void;
   patterns(): void;
+  link?(link: string): void;
 }
 export interface Ctx {
   walk: Walk;

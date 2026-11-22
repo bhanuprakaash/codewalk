@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { Code } from './Code';
 import { useWalk } from './ctx';
 import { Json, valueText } from './Json';
+import { Tag } from './Bars';
+import { BoxIcon } from './icons';
 import { Sec } from './parts';
-import type { Step, Value } from './types';
+import type { Held, Step, Value } from './types';
+
+const ms = (n: number) => (n < 10 ? `${+n.toFixed(2)} ms` : `${Math.round(n)} ms`);
 
 function ValueCard({ v, prev }: { v: Value; prev: unknown }) {
   const { walk, go } = useWalk();
   const [all, setAll] = useState(false);
   const text = valueText(v.value);
   const long = typeof v.value === 'string' && v.value.length > 700 && !all;
-  const captured = v.from.kind === 'captured';
+  const from = v.from;
   return (
     <div className="val">
       <div className="vh">
@@ -22,11 +26,13 @@ function ValueCard({ v, prev }: { v: Value; prev: unknown }) {
             v.type
           )}
         </span>
-        <span className="sp">
-          <span className={`badge ${v.from.kind}`} title={v.from.ref}>
-            {v.from.kind}
+        {from && (
+          <span className="sp">
+            <span className={`badge ${from.kind}`} title={from.ref}>
+              {from.kind}
+            </span>
           </span>
-        </span>
+        )}
       </div>
       <pre>{long ? text.slice(0, 700) + '…' : <Json value={v.value} prev={prev} />}</pre>
       {long && (
@@ -34,11 +40,15 @@ function ValueCard({ v, prev }: { v: Value; prev: unknown }) {
           show all {text.length} characters
         </a>
       )}
-      <div className="src" style={{ padding: '0 12px 9px' }}>
-        {captured
-          ? `from ${v.from.ref}${v.from.at ? ` · run captured ${v.from.at}` : ''}`
-          : `built from the type: ${v.from.ref}`}
-      </div>
+      {(from || v.note) && (
+        <div className="src" style={{ padding: '0 12px 9px' }}>
+          {!from
+            ? v.note
+            : from.kind === 'captured'
+              ? `from ${from.ref}${from.at ? ` · run captured ${from.at}` : ''}`
+              : `built from the type: ${from.ref}`}
+        </div>
+      )}
     </div>
   );
 }
@@ -49,9 +59,10 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
   const e = wf!.edges.find((x) => x.id === s.at);
   const whatif = wf!.whatifs?.find((x) => x.id === wi);
   const forks = !whatif ? (wf!.whatifs ?? []).filter((x) => x.fork === i) : [];
+  const ends = e && (s.back ? [e.to, e.from] : [e.from, e.to]);
   const at = walk.nodes[s.at]
     ? walk.nodes[s.at].label
-    : `${walk.nodes[e!.from].label} → ${walk.nodes[e!.to].label}`;
+    : `${walk.nodes[ends![0]].label} → ${walk.nodes[ends![1]].label}`;
   const site =
     e?.at &&
     (() => {
@@ -78,6 +89,7 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
           {i + 1}
         </div>
         <h2 style={{ fontFamily: 'var(--sans)' }}>{s.title}</h2>
+        {s.tag && <Tag step={s} />}
       </div>
       <div className="loc">
         {whatif && (
@@ -86,6 +98,7 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
           </>
         )}
         step {i + 1} of {trace.length} · at {at}
+        {s.ms !== undefined && ` · ${ms(s.ms)}`}
       </div>
       {s.jump && (
         <div className="step-note">
@@ -133,9 +146,11 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
           </a>
         </p>
       )}
-      <p className="src" style={{ marginTop: 14 }}>
-        Highlighted values changed since the last time this kind of value appeared.
-      </p>
+      {walk.repo && (
+        <p className="src" style={{ marginTop: 14 }}>
+          Highlighted values changed since the last time this kind of value appeared.
+        </p>
+      )}
     </>
   );
 }
@@ -249,6 +264,56 @@ export function StateColumn({ trace, tr }: { trace: Step[]; tr: number }) {
       </div>
       {st.goroutines.map((g) => gr(g))}
       {ended.map((g) => gr(g, true))}
+    </div>
+  );
+}
+
+// the state of a map step: what each node holds after it, with this step's changes marked
+export function HeldColumn({ step }: { step: Step }) {
+  const { walk } = useWalk();
+  const held = step.held ?? [];
+  const owners = [...new Set(held.map((x) => x.of ?? ''))];
+  const item = (x: Held) => {
+    const empty = x.value == null || (typeof x.value === 'object' && !Object.keys(x.value).length);
+    return (
+      <div key={x.name} className={`it${x.chg ? ' chg' : ''}${x.gone ? ' gone' : ''}`}>
+        <div className="nm">
+          {x.name}
+          {x.gone && <span className="tag">removed</span>}
+        </div>
+        {x.note && <div className="note">{x.note}</div>}
+        <pre>{empty ? <span className="none">empty</span> : <Json value={x.value} />}</pre>
+      </div>
+    );
+  };
+  return (
+    <div className="in">
+      <div className="hd">State</div>
+      <div className="sub">
+        After this step.{held.some((x) => x.chg) ? ' What it changed is marked.' : ''}
+      </div>
+      {step.total !== undefined && step.total > 0 && (
+        <div className="clock">
+          <span>
+            <b>{ms(step.ms ?? 0)}</b> this step
+          </span>
+          <span>
+            <b>{ms(step.total)}</b> so far
+          </span>
+        </div>
+      )}
+      {owners.map((o) => (
+        <div key={o}>
+          <div className="own">
+            {walk.nodes[o] && (
+              <BoxIcon kind={walk.nodes[o].kind} icon={walk.nodes[o].icon} size={18} />
+            )}
+            {walk.nodes[o]?.label ?? (o || 'Values')}
+          </div>
+          {held.filter((x) => (x.of ?? '') === o).map(item)}
+        </div>
+      ))}
+      {!held.length && <div className="sub">Nothing held yet.</div>}
     </div>
   );
 }

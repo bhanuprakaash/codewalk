@@ -37,6 +37,8 @@ interface Props {
   onMoved(nodes: Record<string, Pt> | null): void;
   onType?(symbol: string): void;
   marks?: Record<string, { state: string }>;
+  // screen px on the left that a card covers; fitting the whole graph keeps clear of it
+  inset?: number;
   ref: Ref<CanvasHandle>;
 }
 
@@ -89,6 +91,7 @@ export function Canvas({
   onMoved,
   onType,
   marks,
+  inset = 0,
   ref,
 }: Props) {
   const [P, setP] = useState(start);
@@ -112,21 +115,29 @@ export function Canvas({
   const live = useRef({ P, curves, step, stepEdge });
   live.current = { P, curves, step, stepEdge };
 
-  const fit = (ids: Iterable<string>, minHalf = 380, now = false) => {
+  const fit = (ids: Iterable<string>, minHalf = 380, now = false, left = 0) => {
     const r = boxOf(live.current.P, ids);
-    target.current = {
+    const t = {
       cx: (r.x0 + r.x1) / 2,
       cy: (r.y0 + r.y1) / 2,
       hw: Math.max((r.x1 - r.x0) / 2 + 80, minHalf),
       hh: (r.y1 - r.y0) / 2 + 90,
     };
+    const W = svg.current?.getBoundingClientRect().width ?? 0;
+    if (left && W > left * 2) {
+      // widen the view so the graph lands in the part of the screen right of the card
+      const hw = (t.hw * W) / (W - left);
+      t.cx += t.hw - hw;
+      t.hw = hw;
+    }
+    target.current = t;
     if (now || !cam.current) cam.current = { ...target.current };
   };
-  const fitAll = () => fit(wf.nodes, 300);
+  const fitAll = () => fit(wf.nodes, 300, false, inset);
   useImperativeHandle(ref, () => ({ fit: (ids, minHalf) => fit(ids, minHalf), fitAll }));
 
   useEffect(() => {
-    fit(wf.nodes, 300, true);
+    fit(wf.nodes, 300, true, inset);
     let raf = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -156,16 +167,17 @@ export function Canvas({
       if (stepEdge)
         lines.current
           .get(stepEdge.id)
-          ?.style.setProperty('stroke-dashoffset', String(-(now / 1000) * 30));
+          ?.style.setProperty(
+            'stroke-dashoffset',
+            String(((step?.back ? 1 : -1) * now * 30) / 1000),
+          );
       if (!step || !stepEdge) {
         packet.current?.setAttribute('opacity', '0');
         dot.current?.setAttribute('opacity', '0');
         return;
       }
-      const pt = bez(
-        curves.get(stepEdge.id)!,
-        Math.min(1, ease((((now - trStart.current) / 1600) % 1) * 1.1)),
-      );
+      const t = Math.min(1, ease((((now - trStart.current) / 1600) % 1) * 1.1));
+      const pt = bez(curves.get(stepEdge.id)!, step.back ? 1 - t : t);
       packet.current?.setAttribute('transform', `translate(${pt.x + 10},${pt.y - 24})`);
       packet.current?.setAttribute('opacity', '1');
       dot.current?.setAttribute('cx', String(pt.x));
@@ -264,7 +276,9 @@ export function Canvas({
     );
   };
   const packetLabel = step ? (step.values.find((v) => v.dir === 'out') ?? step.values[0]) : null;
-  const packetText = packetLabel?.type || packetLabel?.name || '';
+  const packetText = step?.carries ?? (packetLabel?.type || packetLabel?.name || '');
+  // the step's badge (HIT, MISS…) sits over the node where it happens, or the edge's target
+  const tagAt = step?.tag && (stepNode ?? (stepEdge && (step.back ? stepEdge.from : stepEdge.to)));
 
   return (
     <>
@@ -408,7 +422,7 @@ export function Canvas({
                       <title>{marks[id].state} since you last looked</title>
                     </circle>
                   )}
-                  {n.drill && (
+                  {(n.drill || n.link) && (
                     <text
                       className="bd"
                       x={NW / 2 - 8}
@@ -424,6 +438,23 @@ export function Canvas({
               );
             })}
           </g>
+          {tagAt && P[tagAt] && (
+            <g
+              className={`step-tag ${step!.tone ?? 'info'}`}
+              transform={`translate(${P[tagAt].x + NW / 2 - 12},${P[tagAt].y - NH / 2 - 4})`}
+            >
+              <rect
+                x={-textWidth(step!.tag!, 10.5)}
+                y={-10}
+                width={textWidth(step!.tag!, 10.5)}
+                height={20}
+                rx={10}
+              />
+              <text x={-textWidth(step!.tag!, 10.5) / 2} y={4} textAnchor="middle">
+                {step!.tag}
+              </text>
+            </g>
+          )}
           <g id="labels">
             {hoverEdge &&
               edgeText(wf.edges.find((e) => e.id === hoverEdge)!) &&
