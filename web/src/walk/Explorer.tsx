@@ -205,7 +205,9 @@ export function Explorer({
 
   return (
     <WalkCtx.Provider value={{ walk, wf, wi: s.wi, go, changes: changed.res, notes, setNote }}>
-      <div className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}`}>
+      <div
+        className={`walk${ov ? ' ov' : ''}${tracing ? ' tracing' : ''}${s.open ? ' panel-open' : ''}`}
+      >
         <TopBar crumbs={whole ? (flow ? [flow.title] : []) : [flow?.title ?? 'Overview']}>
           {node && <EntryToggle node={node} on="map" />}
           <span className="meta">
@@ -251,9 +253,9 @@ export function Explorer({
                   onEdge={go.edge}
                   onMoved={moved}
                   marks={changed.res?.changes}
-                  inset={tracing ? 0 : 420}
                 />
                 <Legend
+                  code={code}
                   kinds={wf.nodes.map((id) => walk.nodes[id].kind)}
                   edges={wf.edges.map((e) => e.kind)}
                 />

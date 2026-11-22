@@ -230,7 +230,8 @@ export function Sidebar() {
       );
     }
     const exp = isOpen(n);
-    const cur = n.path === here;
+    // a code walk's own Overview item marks it, so its folder row does not
+    const cur = n.path === here && n.entry?.[0] !== 'walk';
     const flip = () => setOpen({ ...open, [`${project}/${n.path}`]: !exp });
     return (
       <div key={n.path} className={`scope${inside(n) ? ' in' : ''}${cur ? ' cur' : ''}`}>

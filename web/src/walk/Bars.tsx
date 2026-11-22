@@ -29,10 +29,12 @@ export function Legend({
   kinds,
   edges,
   system,
+  code = true,
 }: {
   kinds: string[];
   edges: string[];
   system?: boolean;
+  code?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -66,17 +68,19 @@ export function Legend({
                 {system ? SYSTEM_NAMES[k] : KIND[k as keyof typeof KIND].name}
               </span>
             ))}
-          <span className="it">
-            <span className="chg-sw" aria-hidden="true" />
-            Changed
-          </span>
+          {code && (
+            <span className="it">
+              <span className="chg-sw" aria-hidden="true" />
+              Changed
+            </span>
+          )}
           <span className="bar" />
           {EDGES.filter(([, , ks]) => ks.some((k) => edges.includes(k))).map(([k, name]) => (
             <span className={`it edge ${k}`} key={k}>
               <svg width="30" height="10">
                 <path className="ln" d="M1,5 L27,5" fill="none" markerEnd="url(#ar)" />
               </svg>
-              {name}
+              {!code && k === 'go' ? 'Async' : name}
             </span>
           ))}
         </div>

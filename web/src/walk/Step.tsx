@@ -128,6 +128,11 @@ export function StepCard({ trace, i }: { trace: Step[]; i: number }) {
           <b>Notice</b> {s.note}
         </div>
       )}
+      {s.held && (
+        <div className="held-inline">
+          <HeldColumn step={s} />
+        </div>
+      )}
       {forks.length > 0 && (
         <Sec h="What if…">
           {forks.map((x) => (

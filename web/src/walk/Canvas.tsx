@@ -37,8 +37,6 @@ interface Props {
   onMoved(nodes: Record<string, Pt> | null): void;
   onType?(symbol: string): void;
   marks?: Record<string, { state: string }>;
-  // screen px on the left that a card covers; fitting the whole graph keeps clear of it
-  inset?: number;
   ref: Ref<CanvasHandle>;
 }
 
@@ -91,7 +89,6 @@ export function Canvas({
   onMoved,
   onType,
   marks,
-  inset = 0,
   ref,
 }: Props) {
   const [P, setP] = useState(start);
@@ -115,29 +112,45 @@ export function Canvas({
   const live = useRef({ P, curves, step, stepEdge });
   live.current = { P, curves, step, stepEdge };
 
-  const fit = (ids: Iterable<string>, minHalf = 380, now = false, left = 0) => {
+  const fit = (ids: Iterable<string>, minHalf = 380, now = false, clear = false) => {
     const r = boxOf(live.current.P, ids);
-    const t = {
+    let t = {
       cx: (r.x0 + r.x1) / 2,
       cy: (r.y0 + r.y1) / 2,
       hw: Math.max((r.x1 - r.x0) / 2 + 80, minHalf),
       hh: (r.y1 - r.y0) / 2 + 90,
     };
-    const W = svg.current?.getBoundingClientRect().width ?? 0;
-    if (left && W > left * 2) {
-      // widen the view so the graph lands in the part of the screen right of the card
-      const hw = (t.hw * W) / (W - left);
-      t.cx += t.hw - hw;
-      t.hw = hw;
+    const el = svg.current;
+    const card = clear
+      ? el?.parentElement?.querySelector('#summary')?.getBoundingClientRect()
+      : null;
+    if (el && card?.width) {
+      // place the graph right of the summary card or below it, whichever shows it bigger
+      const v = el.getBoundingClientRect();
+      const l = card.right - v.left + 16;
+      const tp = card.bottom - v.top + 8;
+      const regions = [
+        // 60 px on the right and 40 at the bottom stay clear for the zoom buttons and bars
+        { x: l, y: 0, w: v.width - l - 60, h: v.height - 40 },
+        { x: 0, y: tp, w: v.width - 60, h: v.height - tp - 40 },
+      ];
+      const scale = (g: (typeof regions)[0]) => Math.min(g.w / (2 * t.hw), g.h / (2 * t.hh));
+      const g = regions.reduce((a, b) => (scale(b) > scale(a) ? b : a));
+      if (scale(g) > 0) {
+        const k = scale(g);
+        const hw = v.width / (2 * k);
+        const hh = v.height / (2 * k);
+        t = { cx: t.cx - (g.x + g.w / 2) / k + hw, cy: t.cy - (g.y + g.h / 2) / k + hh, hw, hh };
+      }
     }
     target.current = t;
     if (now || !cam.current) cam.current = { ...target.current };
   };
-  const fitAll = () => fit(wf.nodes, 300, false, inset);
+  const fitAll = () => fit(wf.nodes, 300, false, true);
   useImperativeHandle(ref, () => ({ fit: (ids, minHalf) => fit(ids, minHalf), fitAll }));
 
   useEffect(() => {
-    fit(wf.nodes, 300, true, inset);
+    fit(wf.nodes, 300, true, true);
     let raf = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);

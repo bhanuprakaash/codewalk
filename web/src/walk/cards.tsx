@@ -21,14 +21,14 @@ export function NodeCard({ id }: { id: string }) {
   const IN: Record<EdgeKind, string> = {
     call: 'Called by',
     when: 'Called by',
-    go: 'Gets values from (another goroutine)',
+    go: walk.repo ? 'Gets values from (another goroutine)' : 'Gets messages from',
     stores: 'Stored by',
     asks: 'Asked by',
   };
   const OUT: Record<EdgeKind, string> = {
     call: 'Calls',
     when: 'Calls',
-    go: 'Starts or feeds (another goroutine)',
+    go: walk.repo ? 'Starts or feeds (another goroutine)' : 'Sends messages to (async)',
     stores: 'Stores to',
     asks: 'Asks',
   };
