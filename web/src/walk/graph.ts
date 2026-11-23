@@ -12,6 +12,33 @@ export type Graph = { nodes: string[]; edges: GEdge[]; pos: Record<string, Pt> }
 
 export const NW = 210;
 export const NH = 58;
+const BRIEF_LINE = 14;
+const BRIEF_CHARS = 30;
+
+// splits a node's brief into at most three lines that fit the box
+export function briefLines(brief?: string): string[] {
+  if (!brief) return [];
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of brief.split(/\s+/)) {
+    if (cur && (cur + ' ' + w).length > BRIEF_CHARS) {
+      lines.push(cur);
+      cur = w;
+    } else cur = cur ? cur + ' ' + w : w;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 3) {
+    lines.length = 3;
+    lines[2] = lines[2].slice(0, BRIEF_CHARS - 1) + '…';
+  }
+  return lines;
+}
+export const nodeH = (brief?: string) => {
+  const n = briefLines(brief).length;
+  return n ? NH + 6 + n * BRIEF_LINE : NH;
+};
+export const BRIEF_TOP = NH - 4;
+export { BRIEF_LINE };
 
 export const KIND: Record<Kind, { name: string }> = {
   start: { name: 'Starts' },
@@ -44,18 +71,18 @@ export const ease = (x: number) => {
 export const textWidth = (s: string, px: number) => s.length * px * 0.6 + 14;
 
 type Anchor = Pt & { h: boolean; s: number };
-function anchor(a: Pt, b: Pt): Anchor {
+function anchor(a: Pt, b: Pt, h: number): Anchor {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  if (Math.abs(dx) * NH > Math.abs(dy) * NW) {
+  if (Math.abs(dx) * h > Math.abs(dy) * NW) {
     return { x: a.x + (Math.sign(dx) * NW) / 2, y: a.y, h: true, s: Math.sign(dx) };
   }
-  return { x: a.x, y: a.y + (Math.sign(dy || 1) * NH) / 2, h: false, s: Math.sign(dy || 1) };
+  return { x: a.x, y: a.y + (Math.sign(dy || 1) * h) / 2, h: false, s: Math.sign(dy || 1) };
 }
 
-export function curve(a: Pt, b: Pt, bent: boolean): Pt[] {
-  const p0 = anchor(a, b);
-  const p3 = anchor(b, a);
+export function curve(a: Pt, b: Pt, bent: boolean, ha = NH, hb = NH): Pt[] {
+  const p0 = anchor(a, b, ha);
+  const p3 = anchor(b, a, hb);
   const d = Math.max(36, Math.hypot(p3.x - p0.x, p3.y - p0.y) * 0.38);
   const c = (p: Anchor) => (p.h ? { x: p.x + p.s * d, y: p.y } : { x: p.x, y: p.y + p.s * d });
   let c1 = c(p0);
@@ -111,7 +138,11 @@ export function neighbourhood(wf: Graph, id: string) {
   return { ids, es };
 }
 
-export function boxOf(P: Record<string, Pt>, ids: Iterable<string>) {
+export function boxOf(
+  P: Record<string, Pt>,
+  ids: Iterable<string>,
+  hOf: (id: string) => number = () => NH,
+) {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
@@ -121,8 +152,8 @@ export function boxOf(P: Record<string, Pt>, ids: Iterable<string>) {
     if (!p) continue;
     x0 = Math.min(x0, p.x - NW / 2);
     x1 = Math.max(x1, p.x + NW / 2);
-    y0 = Math.min(y0, p.y - NH / 2);
-    y1 = Math.max(y1, p.y + NH / 2);
+    y0 = Math.min(y0, p.y - hOf(id) / 2);
+    y1 = Math.max(y1, p.y + hOf(id) / 2);
   }
   return { x0, y0, x1, y1 };
 }

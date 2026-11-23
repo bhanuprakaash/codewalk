@@ -1,8 +1,11 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import {
+  BRIEF_LINE,
+  BRIEF_TOP,
   NH,
   NW,
   bez,
+  briefLines,
   boxOf,
   curve,
   edgeText,
@@ -12,6 +15,7 @@ import {
   isBent,
   lerp,
   neighbourhood,
+  nodeH,
   pathOf,
   textWidth,
 } from './graph';
@@ -104,8 +108,20 @@ export function Canvas({
   const trStart = useRef(0);
 
   const curves = useMemo(
-    () => new Map(wf.edges.map((e) => [e.id, curve(P[e.from], P[e.to], isBent(wf, e))])),
-    [wf, P],
+    () =>
+      new Map(
+        wf.edges.map((e) => [
+          e.id,
+          curve(
+            P[e.from],
+            P[e.to],
+            isBent(wf, e),
+            nodeH(nodes[e.from]?.brief),
+            nodeH(nodes[e.to]?.brief),
+          ),
+        ]),
+      ),
+    [wf, P, nodes],
   );
   const stepEdge = step && wf.edges.find((e) => e.id === step.at);
   // read by the animation loop, which outlives any one render
@@ -113,7 +129,7 @@ export function Canvas({
   live.current = { P, curves, step, stepEdge };
 
   const fit = (ids: Iterable<string>, minHalf = 380, now = false, clear = false) => {
-    const r = boxOf(live.current.P, ids);
+    const r = boxOf(live.current.P, ids, (id) => nodeH(nodes[id]?.brief));
     let t = {
       cx: (r.x0 + r.x1) / 2,
       cy: (r.y0 + r.y1) / 2,
@@ -366,6 +382,9 @@ export function Canvas({
               const inStep =
                 stepNode === id || (stepEdge && (stepEdge.from === id || stepEdge.to === id));
               const exits = (n.errs ?? []).length;
+              const brief = briefLines(n.brief);
+              const h = nodeH(n.brief);
+              const top = -h / 2;
               const sel = (selected?.k === 'node' && selected.id === id) || stepNode === id;
               const lit = !!hood && hood.ids.has(id) && id !== focusId;
               return (
@@ -390,24 +409,33 @@ export function Canvas({
                   <rect
                     className="ring"
                     x={-NW / 2 - 2}
-                    y={-NH / 2 - 2}
+                    y={top - 2}
                     width={NW + 4}
-                    height={NH + 4}
+                    height={h + 4}
                     rx={16}
                   />
-                  <rect className="box" x={-NW / 2} y={-NH / 2} width={NW} height={NH} rx={14} />
-                  <BoxIcon icon={n.icon} kind={n.kind} x={-NW / 2 + 10} y={-18} size={36} />
-                  <text className="lb" x={-NW / 2 + 55} y={n.sub ? -3 : 5}>
+                  <rect className="box" x={-NW / 2} y={top} width={NW} height={h} rx={14} />
+                  <BoxIcon icon={n.icon} kind={n.kind} x={-NW / 2 + 10} y={top + 11} size={36} />
+                  <text className="lb" x={-NW / 2 + 55} y={top + (n.sub ? 26 : 34)}>
                     {trunc(n.label, 20)}
                   </text>
-                  <text className="sb" x={-NW / 2 + 55} y={14}>
+                  <text className="sb" x={-NW / 2 + 55} y={top + 43}>
                     {trunc(n.sub ?? '', 25)}
                   </text>
+                  {brief.length > 0 && (
+                    <text className="br" x={-NW / 2 + 12} y={top + BRIEF_TOP}>
+                      {brief.map((l, i) => (
+                        <tspan key={i} x={-NW / 2 + 12} dy={BRIEF_LINE}>
+                          {l}
+                        </tspan>
+                      ))}
+                    </text>
+                  )}
                   {exits > 0 && (
                     <text
                       className="bd"
                       x={NW / 2 - 8}
-                      y={-NH / 2 + 13}
+                      y={top + 13}
                       textAnchor="end"
                       fill="var(--data)"
                     >
@@ -418,7 +446,7 @@ export function Canvas({
                     <text
                       className="bd"
                       x={NW / 2 - 8}
-                      y={NH / 2 - 6}
+                      y={h / 2 - 6}
                       textAnchor="end"
                       fill="var(--k-func)"
                     >
@@ -429,7 +457,7 @@ export function Canvas({
                     <circle
                       className={`mark ${marks[id].state}`}
                       cx={-NW / 2 + 4}
-                      cy={-NH / 2 + 4}
+                      cy={top + 4}
                       r={5}
                     >
                       <title>{marks[id].state} since you last looked</title>
@@ -439,7 +467,7 @@ export function Canvas({
                     <text
                       className="bd"
                       x={NW / 2 - 8}
-                      y={-NH / 2 + 13}
+                      y={top + 13}
                       textAnchor="end"
                       fill="var(--focus)"
                     >
@@ -454,7 +482,7 @@ export function Canvas({
           {tagAt && P[tagAt] && (
             <g
               className={`step-tag ${step!.tone ?? 'info'}`}
-              transform={`translate(${P[tagAt].x + NW / 2 - 12},${P[tagAt].y - NH / 2 - 4})`}
+              transform={`translate(${P[tagAt].x + NW / 2 - 12},${P[tagAt].y - nodeH(nodes[tagAt]?.brief) / 2 - 4})`}
             >
               <rect
                 x={-textWidth(step!.tag!, 10.5)}

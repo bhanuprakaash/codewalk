@@ -1469,6 +1469,11 @@ svg#stage.panning {
   font-size: 11px;
   fill: var(--muted);
 }
+.node .br {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  fill: var(--muted);
+}
 .node .bd {
   font-family: var(--sans);
   font-size: 9.5px;
