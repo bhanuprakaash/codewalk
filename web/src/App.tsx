@@ -35,13 +35,17 @@ export function App() {
   const [route, setRoute] = useState(parseLocation);
   const [loaded, setTree] = useState<TreeNode | null>(null);
   const [treeError, setTreeError] = useState<string | null>(null);
+  const [menu, setMenu] = useState(!route.project);
 
   useEffect(() => {
     fetch('/api/projects')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.statusText))))
       .then(setProjects)
       .catch(() => setFailed(true));
-    const onPop = () => setRoute(parseLocation());
+    const onPop = () => {
+      setRoute(parseLocation());
+      setMenu(false);
+    };
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
   }, []);
@@ -71,6 +75,7 @@ export function App() {
   const navigate = (r: Route, replace = false) => {
     history[replace ? 'replaceState' : 'pushState'](null, '', hrefOf(r));
     setRoute(r);
+    setMenu(false);
   };
 
   useEffect(() => {
@@ -166,7 +171,7 @@ export function App() {
   }
 
   return (
-    <NavCtx.Provider value={{ projects, tree, route, go: navigate }}>
+    <NavCtx.Provider value={{ projects, tree, route, go: navigate, menu, setMenu }}>
       <div className="app">
         <Sidebar />
         <main className="main">{body}</main>

@@ -19,6 +19,7 @@ import {
   pathOf,
   textWidth,
 } from './graph';
+import { PHONE } from '../route';
 import type { Entry } from './nav';
 import { BoxIcon } from './icons';
 import type { Pt, Step, WalkNode } from './types';
@@ -129,6 +130,9 @@ export function Canvas({
   live.current = { P, curves, step, stepEdge };
 
   const fit = (ids: Iterable<string>, minHalf = 380, now = false, clear = false) => {
+    // a narrow canvas zooms in further, so a node's text stays readable on a phone
+    const width = svg.current?.getBoundingClientRect().width;
+    if (width && matchMedia(PHONE).matches) minHalf = Math.min(minHalf, width / 1.8);
     const r = boxOf(live.current.P, ids, (id) => nodeH(nodes[id]?.brief));
     let t = {
       cx: (r.x0 + r.x1) / 2,
@@ -167,6 +171,19 @@ export function Canvas({
 
   useEffect(() => {
     fit(wf.nodes, 300, true, true);
+    // a wide graph on a phone opens on its left end at a readable size, not as a thin strip
+    const v = svg.current!.getBoundingClientRect();
+    const c = cam.current!;
+    const shown = Math.max(2 * c.hw, (2 * c.hh * v.width) / v.height);
+    const z = v.width / shown / 0.5;
+    if (matchMedia(PHONE).matches && z < 1) {
+      cam.current = target.current = {
+        cx: c.cx - (shown / 2) * (1 - z),
+        cy: c.cy,
+        hw: c.hw * z,
+        hh: c.hh * z,
+      };
+    }
     let raf = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -252,10 +269,80 @@ export function Canvas({
     return () => el.removeEventListener('wheel', wheel);
   }, []);
 
+  // fingers on the canvas: one pans, two pinch
+  const fingers = useRef(new Map<number, Pt>());
+  const pinching = useRef(false);
+  const byTouch = useRef(false);
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      if (fingers.current.has(e.pointerId))
+        fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    };
+    const end = (e: PointerEvent) => {
+      fingers.current.delete(e.pointerId);
+      if (!fingers.current.size) pinching.current = false;
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', end);
+    addEventListener('pointercancel', end);
+    return () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', end);
+      removeEventListener('pointercancel', end);
+    };
+  }, []);
+  const pinch = () => {
+    const el = svg.current!;
+    const [a, b] = [...fingers.current.keys()];
+    const read = () => {
+      const p = fingers.current.get(a);
+      const q = fingers.current.get(b);
+      if (!p || !q) return null;
+      return { d: Math.hypot(p.x - q.x, p.y - q.y) || 1, x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    };
+    const s = read()!;
+    const c0 = { ...cam.current! };
+    const p0 = toWorld({ clientX: s.x, clientY: s.y });
+    const k = el.viewBox.baseVal.width / el.getBoundingClientRect().width;
+    pinching.current = true;
+    dragged.current = true;
+    target.current = null;
+    const move = () => {
+      const n = read();
+      if (!n) return;
+      const z = s.d / n.d;
+      cam.current = {
+        cx: p0.x + (c0.cx - p0.x) * z - (n.x - s.x) * k * z,
+        cy: p0.y + (c0.cy - p0.y) * z - (n.y - s.y) * k * z,
+        hw: c0.hw * z,
+        hh: c0.hh * z,
+      };
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== a && e.pointerId !== b) return;
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      setTimeout(() => (dragged.current = false), 0);
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  };
+
   const pointerDown = (ev: React.PointerEvent<SVGSVGElement>) => {
     const t = ev.target as Element;
-    if (ev.button !== 0 || t.closest('.edge')) return;
-    const id = t.closest<SVGElement>('.node')?.dataset.id;
+    const touch = ev.pointerType === 'touch';
+    // a finger pans from anywhere, edges included: zoomed in, they cover much of a phone's canvas
+    if (ev.button !== 0 || (!touch && t.closest('.edge'))) return;
+    byTouch.current = touch;
+    if (touch) {
+      fingers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (fingers.current.size === 2) return pinch();
+      if (fingers.current.size > 2) return;
+    }
+    // a finger on a node pans like anywhere else: only a mouse moves nodes
+    const id = touch ? undefined : t.closest<SVGElement>('.node')?.dataset.id;
     const sx = ev.clientX;
     const sy = ev.clientY;
     const orig = id ? { ...P[id] } : null;
@@ -266,6 +353,7 @@ export function Canvas({
     const el = svg.current!;
     if (!id) el.classList.add('panning');
     const move = (e: PointerEvent) => {
+      if (e.pointerId !== ev.pointerId || pinching.current) return;
       if (Math.hypot(e.clientX - sx, e.clientY - sy) > 4) dragged.current = true;
       if (!dragged.current) return;
       const k = el.viewBox.baseVal.width / el.getBoundingClientRect().width;
@@ -276,15 +364,18 @@ export function Canvas({
         setP((p) => ({ ...p, [id]: moved! }));
       } else cam.current = { ...c0, cx: c0.cx - dx, cy: c0.cy - dy };
     };
-    const up = () => {
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== ev.pointerId) return;
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
       el.classList.remove('panning');
       if (id && moved) onMoved({ ...live.current.P, [id]: moved });
       setTimeout(() => (dragged.current = false), 0);
     };
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
   };
 
   const focusId = hover ?? (step ? null : selected?.k === 'node' ? selected.id : null);
@@ -318,6 +409,8 @@ export function Canvas({
         onPointerDown={pointerDown}
         onDoubleClick={(ev) => {
           if ((ev.target as Element).closest('.node')) return;
+          // a double tap only refits: it must not throw away a saved layout
+          if (byTouch.current) return fitAll();
           live.current.P = { ...wf.pos };
           setP({ ...wf.pos });
           onMoved(null);
@@ -365,6 +458,7 @@ export function Canvas({
                     d={d}
                     onClick={(ev) => {
                       ev.stopPropagation();
+                      if (dragged.current) return;
                       onEdge(e.id);
                     }}
                     onPointerEnter={() => setHoverEdge(e.id)}
