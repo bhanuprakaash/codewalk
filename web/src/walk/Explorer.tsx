@@ -15,6 +15,7 @@ import { Overview } from './Overview';
 import { Panel } from './Panel';
 import { HeldColumn, StateColumn, StepCard } from './Step';
 import { patchUser } from './user';
+import { STATIC } from '../static';
 import type { TreeNode } from '../route';
 import type { Pt, User, Walk, Workflow } from './types';
 
@@ -52,6 +53,7 @@ export function Explorer({
   const userDoc = useRef(user);
   const [saveFailed, setSaveFailed] = useState(false);
   const code = !!walk.repo;
+  const canAsk = code && !STATIC;
   const asked = useAsk(query);
   const changed = useChanges(code ? query : null);
   const [notes, setNotes] = useState<Notes>((user.notes as Notes) ?? {});
@@ -102,7 +104,7 @@ export function Explorer({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as Element).closest('textarea, input')) return;
-      if (e.key === '/') {
+      if (e.key === '/' && canAsk) {
         e.preventDefault();
         dispatch({ t: 'tab', tab: 'ask' });
       } else if (e.altKey && e.key === 'ArrowLeft') {
@@ -226,7 +228,7 @@ export function Explorer({
             n={walk.patterns?.length ?? 0}
             onOpen={() => open({ k: 'patterns', id: '' })}
           />
-          {code && <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />}
+          {canAsk && <AskButton onAsk={() => dispatch({ t: 'tab', tab: 'ask' })} />}
         </TopBar>
         <div id="body">
           <aside id="state">
@@ -288,7 +290,7 @@ export function Explorer({
             count={s.hist.length}
             bodyKey={`${s.tab}:${JSON.stringify(cur)}`}
             tab={s.tab}
-            ask={code}
+            ask={canAsk}
             subject={subject}
             onAsk={(q) => {
               dispatch({ t: 'tab', tab: 'ask' });

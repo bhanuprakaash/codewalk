@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { STATIC } from '../static';
 import { useWalk } from './ctx';
 import { Sec } from './parts';
 import type { Walk } from './types';
@@ -57,7 +58,7 @@ export function NoteSec({ k }: { k: string }) {
       </Sec>
     );
   if (!text)
-    return (
+    return STATIC ? null : (
       <p className="note-add">
         <a onClick={() => setDraft('')}>+ Add a note</a>
       </p>
@@ -65,10 +66,12 @@ export function NoteSec({ k }: { k: string }) {
   return (
     <Sec h="Your note">
       <div className="pinned">{text}</div>
-      <div className="note-actions">
-        <a onClick={() => setDraft(text)}>Edit</a>
-        <a onClick={() => setNote(k, null)}>Delete</a>
-      </div>
+      {!STATIC && (
+        <div className="note-actions">
+          <a onClick={() => setDraft(text)}>Edit</a>
+          <a onClick={() => setNote(k, null)}>Delete</a>
+        </div>
+      )}
     </Sec>
   );
 }
@@ -87,9 +90,11 @@ export function OrphansCard({ list }: { list: [string, string][] }) {
       {list.map(([k, text]) => (
         <Sec key={k} h={<code className="note-key">{k}</code>}>
           <div className="pinned">{text}</div>
-          <div className="note-actions">
-            <a onClick={() => setNote(k, null)}>Delete</a>
-          </div>
+          {!STATIC && (
+            <div className="note-actions">
+              <a onClick={() => setNote(k, null)}>Delete</a>
+            </div>
+          )}
         </Sec>
       ))}
     </>

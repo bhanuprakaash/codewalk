@@ -61,6 +61,21 @@ codewalk serve [--port 47474] [--data ~/.codewalk]
 
 If the port is taken, `serve` exits and names the process holding it.
 
+## Read-only copy
+
+`codewalk export [--data DIR] <out dir>` writes a static, read-only copy of every project for a
+host such as Cloudflare Pages: pages, maps, walks and system views, with notes shown but not
+editable. Ask, change marks and saving dragged boxes need the local app. It includes walk code
+from the walked repos. `_worker.js` in the copy asks for a password (any user name) and serves
+nothing until the `PASSWORD` secret is set.
+
+```sh
+codewalk export ~/codewalk-site
+npx wrangler pages deploy ~/codewalk-site --project-name codewalk
+npx wrangler pages secret put PASSWORD --project-name codewalk
+npx wrangler pages deploy ~/codewalk-site --project-name codewalk   # picks up the secret
+```
+
 ## Update
 
 ```sh
