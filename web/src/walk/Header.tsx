@@ -169,9 +169,7 @@ export function Sidebar() {
     const as = n.path === here ? route.as : undefined;
     const kind = n.entry?.find((k) => k === as) ?? n.entry?.[0];
     if (kind === 'walk') return { key: n.path, walk: true };
-    if (kind === 'map' || (kind === 'page' && n.entry?.includes('map') && n.path === here))
-      return n.entry?.includes('map') ? { key: join(n.path, 'index.map.json'), walk: false } : null;
-    return null;
+    return n.entry?.includes('map') ? { key: join(n.path, 'index.map.json'), walk: false } : null;
   };
   const want: { key: string; walk: boolean }[] = [];
   const walkTree = (n: TreeNode) => {
