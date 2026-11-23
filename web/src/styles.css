@@ -729,6 +729,8 @@ svg#stage {
   display: block;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 svg#stage.panning {
   cursor: grabbing;
