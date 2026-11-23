@@ -48,9 +48,13 @@ Copy `templates/page.html` for every page and keep its `<style>` block as it is.
   - `nav.toc` with a numbered `ol` of links to the sections.
   - `h2` with an `id` and a `<span class="step">N</span>` number, one per section.
   - `pre` for code and ASCII diagrams; mark comments `<span class="c">` and keywords
-    `<span class="k">`.
+    `<span class="k">`. Keep every line within 40 columns so it fits a phone without scrolling:
+    put comments on their own line, run chains of arrows top to bottom, stack side-by-side
+    comparisons, and write timelines as one step per line.
   - `.note` for the key point of a section, `.note.aside` for a caveat.
-  - `.tbl > table` for comparisons (`th` in the first row).
+  - `.tbl > table` for comparisons (`th` in the first row). Give every `td` a `data-label` with
+    its column's header: on a phone each row becomes a card, titled by its first cell, with the
+    other cells under their labels.
   - End with `<hr>` and an `h2` summary: a short list of what to remember.
 - Link to other files with plain relative links: `<a href="eviction.html">`, `<a href="../">`,
   `<a href="index.map.json">`. Clicks move the app, so the sidebar follows. Links to other sites

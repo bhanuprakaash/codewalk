@@ -245,6 +245,53 @@
         h1 {
           font-size: 28px;
         }
+        h2 {
+          font-size: 21px;
+          margin-top: 44px;
+        }
+        p,
+        li,
+        td {
+          overflow-wrap: anywhere;
+        }
+        .toc li {
+          margin-bottom: 10px;
+        }
+        /* pre lines are written to fit 40 columns at this size */
+        pre {
+          font-size: 12px;
+          padding: 12px;
+        }
+        /* a table becomes one card per row: the first cell is its title, the rest are labelled */
+        .tbl table,
+        .tbl tbody,
+        .tbl tr,
+        .tbl td {
+          display: block;
+        }
+        .tbl tr:has(th) {
+          display: none;
+        }
+        .tbl tr {
+          padding: 12px 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .tbl td {
+          padding: 3px 0;
+          border: 0;
+        }
+        .tbl td:first-child {
+          font-weight: 600;
+        }
+        .tbl td[data-label]:not(:first-child)::before {
+          content: attr(data-label);
+          display: block;
+          font-size: 11px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--muted);
+          font-weight: 600;
+        }
       }
     </style>
   </head>
@@ -272,12 +319,12 @@
     <div class="tbl">
       <table>
         <tr><th>Operation</th><th>Typical time</th><th>Relative</th></tr>
-        <tr><td>Read from process memory</td><td>~100 ns</td><td>1x</td></tr>
-        <tr><td>Redis round trip, same datacenter</td><td>0.2 to 0.5 ms</td><td>~2,000 to 5,000x</td></tr>
-        <tr><td>SSD random read</td><td>~0.1 ms</td><td>~1,000x</td></tr>
-        <tr><td>Database query, indexed lookup</td><td>1 to 10 ms</td><td>~10,000 to 100,000x</td></tr>
-        <tr><td>Database query under load, joins, cold pages</td><td>10 to 100+ ms</td><td>far more</td></tr>
-        <tr><td>Cross-continent round trip</td><td>~150 ms</td><td>~1,500,000x</td></tr>
+        <tr><td data-label="Operation">Read from process memory</td><td data-label="Typical time">~100 ns</td><td data-label="Relative">1x</td></tr>
+        <tr><td data-label="Operation">Redis round trip, same datacenter</td><td data-label="Typical time">0.2 to 0.5 ms</td><td data-label="Relative">~2,000 to 5,000x</td></tr>
+        <tr><td data-label="Operation">SSD random read</td><td data-label="Typical time">~0.1 ms</td><td data-label="Relative">~1,000x</td></tr>
+        <tr><td data-label="Operation">Database query, indexed lookup</td><td data-label="Typical time">1 to 10 ms</td><td data-label="Relative">~10,000 to 100,000x</td></tr>
+        <tr><td data-label="Operation">Database query under load, joins, cold pages</td><td data-label="Typical time">10 to 100+ ms</td><td data-label="Relative">far more</td></tr>
+        <tr><td data-label="Operation">Cross-continent round trip</td><td data-label="Typical time">~150 ms</td><td data-label="Relative">~1,500,000x</td></tr>
       </table>
     </div>
     <p>Notice that even a fast distributed cache is dominated by the network round trip, not the memory access. It is still 5 to 50 times quicker than a database query. The second benefit is capacity: if 95% of reads are answered by the cache, the database serves one request in twenty, so a database that was at its limit now has room to grow.</p>
@@ -286,36 +333,53 @@
     <h2 id="where"><span class="step">2</span>Where caches live</h2>
     <p>A request can pass through many caches. Each one is closer to the user than the last, and each one adds a place for data to be stale.</p>
     <pre><span class="c"># nearest to the user first</span>
-Browser cache  →  CDN edge  →  Reverse proxy  →  App in-process  →  Redis / Memcached  →  DB buffer pool  →  disk
-  (HTTP headers)   (static,      (nginx,          (local map,         (shared by all       (hot pages         (source
-                    cacheable     Varnish)         per instance)        app servers)         in RAM)            of truth)
-                    responses)</pre>
+Browser cache      HTTP headers
+ ↓
+CDN edge           static, cacheable
+ ↓                 responses
+Reverse proxy      nginx, Varnish
+ ↓
+App in-process     local map,
+ ↓                 per instance
+Redis / Memcached  shared by all
+ ↓                 app servers
+DB buffer pool     hot pages in RAM
+ ↓
+disk               source of truth</pre>
     <div class="tbl">
       <table>
         <tr><th>Layer</th><th>What it holds</th><th>Watch out for</th></tr>
-        <tr><td>Browser</td><td>Responses controlled by <code>Cache-Control</code> and <code>ETag</code></td><td>You cannot purge it. Version your URLs.</td></tr>
-        <tr><td>CDN</td><td>Static files and cacheable pages near the user</td><td>Purges are global and slow.</td></tr>
-        <tr><td>Reverse proxy</td><td>Whole HTTP responses</td><td>Varying by cookie or header explodes the key space.</td></tr>
-        <tr><td>In-process</td><td>Objects in the app's own heap, no network at all</td><td>Each instance has its own copy; they disagree after a write.</td></tr>
-        <tr><td>Distributed cache</td><td>Application data keyed by you (Redis, Memcached)</td><td>One more system; a network hop per call.</td></tr>
-        <tr><td>DB buffer pool</td><td>Hot table and index pages</td><td>Automatic, but size and cold starts matter.</td></tr>
+        <tr><td data-label="Layer">Browser</td><td data-label="What it holds">Responses controlled by <code>Cache-Control</code> and <code>ETag</code></td><td data-label="Watch out for">You cannot purge it. Version your URLs.</td></tr>
+        <tr><td data-label="Layer">CDN</td><td data-label="What it holds">Static files and cacheable pages near the user</td><td data-label="Watch out for">Purges are global and slow.</td></tr>
+        <tr><td data-label="Layer">Reverse proxy</td><td data-label="What it holds">Whole HTTP responses</td><td data-label="Watch out for">Varying by cookie or header explodes the key space.</td></tr>
+        <tr><td data-label="Layer">In-process</td><td data-label="What it holds">Objects in the app's own heap, no network at all</td><td data-label="Watch out for">Each instance has its own copy; they disagree after a write.</td></tr>
+        <tr><td data-label="Layer">Distributed cache</td><td data-label="What it holds">Application data keyed by you (Redis, Memcached)</td><td data-label="Watch out for">One more system; a network hop per call.</td></tr>
+        <tr><td data-label="Layer">DB buffer pool</td><td data-label="What it holds">Hot table and index pages</td><td data-label="Watch out for">Automatic, but size and cold starts matter.</td></tr>
       </table>
     </div>
     <p>This page and the map focus on the distributed cache, because it is the one you design. The same ideas (key, TTL, eviction, invalidation) apply at every layer.</p>
 
     <h2 id="ratio"><span class="step">3</span>Hit ratio and average latency</h2>
     <p>The <b>hit ratio</b> is hits divided by total lookups. Average latency is a weighted mix of the fast and the slow path:</p>
-    <pre>avg = hit_ratio × t_hit  +  (1 − hit_ratio) × t_miss
+    <pre>avg = hit_ratio × t_hit
+    + (1 − hit_ratio) × t_miss
 
-<span class="c"># t_hit ≈ 1 ms (Redis path), t_miss ≈ 14 ms (Redis GET + SELECT + SET)</span>
-hit ratio 50%:   0.50 × 1 + 0.50 × 14  =  7.5  ms
-hit ratio 90%:   0.90 × 1 + 0.10 × 14  =  2.3  ms
-hit ratio 95%:   0.95 × 1 + 0.05 × 14  =  1.65 ms
-hit ratio 99%:   0.99 × 1 + 0.01 × 14  =  1.13 ms</pre>
+<span class="c"># t_hit  ≈ 1 ms (Redis path)</span>
+<span class="c"># t_miss ≈ 14 ms</span>
+<span class="c">#   (Redis GET + SELECT + SET)</span>
+hit ratio 50%:
+  0.50 × 1 + 0.50 × 14 = 7.5  ms
+hit ratio 90%:
+  0.90 × 1 + 0.10 × 14 = 2.3  ms
+hit ratio 95%:
+  0.95 × 1 + 0.05 × 14 = 1.65 ms
+hit ratio 99%:
+  0.99 × 1 + 0.01 × 14 = 1.13 ms</pre>
     <p>The same ratio governs database load. At 10,000 reads per second:</p>
-    <pre>hit ratio 90%  →  1,000 queries/s reach the database
-hit ratio 95%  →    500 queries/s
-hit ratio 99%  →    100 queries/s</pre>
+    <pre>hit ratio 90% → 1,000 queries/s
+                reach the database
+hit ratio 95% →   500 queries/s
+hit ratio 99% →   100 queries/s</pre>
     <div class="note"><p>Going from 90% to 99% looks like a small gain, but it cuts database load tenfold. Look at the <em>miss</em> ratio, not the hit ratio, when sizing the database. This is also why a cache outage hurts so much: 95% to 0% multiplies database load by twenty.</p></div>
     <p>Redis reports <code>keyspace_hits</code> and <code>keyspace_misses</code> in <code>INFO stats</code>. Watch them, together with <code>evicted_keys</code>. A falling hit ratio with rising evictions means the cache is too small for your working set.</p>
 
@@ -323,35 +387,47 @@ hit ratio 99%  →    100 queries/s</pre>
     <h3>Cache-aside (lazy loading)</h3>
     <p>The application manages the cache itself. It checks the cache, and on a miss loads from the database and stores the result. Only data that is actually requested is cached, and a cache failure just means misses.</p>
     <pre><span class="k">def</span> get_user(id):
-    v = redis.get(f"user:{id}")             <span class="c"># 1. ask the cache</span>
-    <span class="k">if</span> v <span class="k">is not</span> None: <span class="k">return</span> decode(v)      <span class="c">#    hit</span>
-    row = db.query("SELECT * FROM users WHERE id = %s", id)   <span class="c"># 2. miss: read truth</span>
-    redis.set(f"user:{id}", encode(row), ex=300)              <span class="c"># 3. fill, with a TTL</span>
+    <span class="c"># 1. ask the cache</span>
+    v = redis.get(f"user:{id}")
+    <span class="k">if</span> v <span class="k">is not</span> None:
+        <span class="k">return</span> decode(v)  <span class="c"># hit</span>
+    <span class="c"># 2. miss: read truth</span>
+    row = db.query(
+        "SELECT * FROM users"
+        " WHERE id = %s", id)
+    <span class="c"># 3. fill, with a TTL</span>
+    redis.set(f"user:{id}", encode(row),
+              ex=300)
     <span class="k">return</span> row</pre>
-    <pre>  client ─► app ─► Redis ── hit ──────────────► reply        (~1 ms)
-                    │
-                    └── miss ─► Postgres ─► app ─► SET ─► reply (~14 ms)</pre>
+    <pre>client ─► app ─► Redis
+  hit  ─► reply                  (~1 ms)
+  miss ─► Postgres ─► app ─► SET
+       ─► reply                 (~14 ms)</pre>
     <h3>Read-through</h3>
     <p>The cache itself loads missing data. The application only talks to the cache, and the cache has a loader function (or sits in front of the database as a library, a proxy or a managed service). The flow is the same as cache-aside, but the logic lives in one place instead of in every caller. Plain Redis does not do this; libraries and some products do.</p>
     <div class="note aside"><p>Cache-aside is the default with Redis. Its cost is that every caller must remember the pattern, and the first request after expiry always pays the miss.</p></div>
 
     <h2 id="write"><span class="step">5</span>Write patterns</h2>
-    <pre><span class="c"># write-through: app writes cache and DB together</span>
-app ─► cache ─► DB            <span class="c"># write completes after both</span>
+    <pre><span class="c"># write-through:</span>
+<span class="c"># app writes cache and DB together</span>
+app ─► cache ─► DB
+<span class="c"># write completes after both</span>
 
-<span class="c"># write-behind (write-back): DB is updated later</span>
-app ─► cache ─ ack ─► app     <span class="c"># fast ack</span>
-          └──── (async, batched) ─► DB
+<span class="c"># write-behind (write-back):</span>
+<span class="c"># DB is updated later</span>
+app ─► cache ─ ack ─► app   <span class="c"># fast ack</span>
+          └── (async, batched) ─► DB
 
 <span class="c"># write-around: skip the cache on write</span>
-app ─► DB                     <span class="c"># cache filled on the next read</span></pre>
+app ─► DB
+<span class="c"># cache filled on the next read</span></pre>
     <div class="tbl">
       <table>
         <tr><th>Pattern</th><th>Write latency</th><th>Read after write</th><th>Risk</th></tr>
-        <tr><td><b>Write-through</b></td><td>Slower: two writes in the path</td><td>Always fresh</td><td>Caches data that may never be read; the two writes can still disagree if one fails</td></tr>
-        <tr><td><b>Write-behind</b></td><td>Fastest: ack from memory</td><td>Fresh from the cache</td><td>Data loss if the cache dies before flushing; ordering and retry complexity</td></tr>
-        <tr><td><b>Write-around</b></td><td>Normal DB write</td><td>First read misses</td><td>Stale if an old copy already exists and is not invalidated</td></tr>
-        <tr><td><b>Cache-aside + invalidate</b></td><td>DB write plus one DEL</td><td>First read misses, then fresh</td><td>Small race windows (see below)</td></tr>
+        <tr><td data-label="Pattern"><b>Write-through</b></td><td data-label="Write latency">Slower: two writes in the path</td><td data-label="Read after write">Always fresh</td><td data-label="Risk">Caches data that may never be read; the two writes can still disagree if one fails</td></tr>
+        <tr><td data-label="Pattern"><b>Write-behind</b></td><td data-label="Write latency">Fastest: ack from memory</td><td data-label="Read after write">Fresh from the cache</td><td data-label="Risk">Data loss if the cache dies before flushing; ordering and retry complexity</td></tr>
+        <tr><td data-label="Pattern"><b>Write-around</b></td><td data-label="Write latency">Normal DB write</td><td data-label="Read after write">First read misses</td><td data-label="Risk">Stale if an old copy already exists and is not invalidated</td></tr>
+        <tr><td data-label="Pattern"><b>Cache-aside + invalidate</b></td><td data-label="Write latency">DB write plus one DEL</td><td data-label="Read after write">First read misses, then fresh</td><td data-label="Risk">Small race windows (see below)</td></tr>
       </table>
     </div>
     <p>Write-behind is the one to be careful with: while data sits only in the cache, the cache is the source of truth, and a crash loses it. Use it for data you can afford to lose (counters, view counts), or with a durable log underneath.</p>
@@ -363,15 +439,24 @@ app ─► DB                     <span class="c"># cache filled on the next rea
       <li><b>Delete on write:</b> remove the key and let the next read reload it. Usually preferred.</li>
     </ul>
     <p>Why delete wins: with update-on-write, two writers can interleave so the cache ends up with the older value. Writer A updates the DB to v1, writer B updates it to v2, but B's cache write lands first and A's lands last. The DB says v2, the cache says v1, and nothing will fix that until the TTL. A delete has no such order problem: whoever deletes last, the key is gone, and the next reader fetches whatever the database says. Update-on-write also caches values that may never be read, and may require recomputing derived objects.</p>
-    <pre>update on write                          delete on write
-  A: DB=v1                                 A: DB=v1
-  B: DB=v2                                 B: DB=v2
-  B: SET cache=v2                          B: DEL key
-  A: SET cache=v1   ← stale until TTL      A: DEL key      ← cache empty, correct</pre>
+    <pre>update on write
+  A: DB=v1
+  B: DB=v2
+  B: SET cache=v2
+  A: SET cache=v1  ← stale until TTL
+
+delete on write
+  A: DB=v1
+  B: DB=v2
+  B: DEL key
+  A: DEL key  ← cache empty, correct</pre>
     <p>Even delete-on-write has a race. A reader that misses can read the old row, stall, and write it into the cache after the writer's delete has already run:</p>
-    <pre>reader:  GET → miss ─► SELECT (sees v1) ·····························► SET cache=v1
-writer:                           UPDATE → v2 ─► DEL key (nothing there)
-                                                                    cache holds v1, DB has v2</pre>
+    <pre>reader: GET → miss
+reader: SELECT (sees v1)
+writer: UPDATE → v2
+writer: DEL key (nothing there)
+reader: ·········► SET cache=v1
+result: cache holds v1, DB has v2</pre>
     <p>It is rare, because it requires a reader slower than a writer, but at scale it will happen. Defenses:</p>
     <ul>
       <li><b>TTL as a safety net.</b> Every key gets an expiry (<code>SET key val EX 300</code>), so even a missed invalidation heals itself. Pick the TTL by how stale the data may be.</li>
