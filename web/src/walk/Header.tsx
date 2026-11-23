@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  PHONE,
   find,
   hrefOf,
   join,
@@ -51,6 +52,18 @@ const FOLDER = 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2
 const PANEL = 'M3 4h18v16H3z M9 4v16';
 const PAGE = 'M6 3h8l4 4v14H6z M14 3v4h4 M9 12h6 M9 16h6';
 const MAP = 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z M9 4v14 M15 6v14';
+const MENU = 'M4 7h16 M4 12h16 M4 17h16';
+
+function usePhone() {
+  const [phone, setPhone] = useState(() => matchMedia(PHONE).matches);
+  useEffect(() => {
+    const mq = matchMedia(PHONE);
+    const on = () => setPhone(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return phone;
+}
 
 type Flow = { id: string; title: string; tone: Tone };
 const flowsOf = (w: Walk): Flow[] =>
@@ -70,7 +83,7 @@ function loadRail(onFlow: boolean) {
   } catch {
     // private mode: fall back to the default
   }
-  return onFlow || matchMedia('(max-width: 700px)').matches;
+  return onFlow;
 }
 
 const ICON: Record<Tone, string> = {
@@ -135,13 +148,18 @@ function useFlows(project: string | undefined, want: { key: string; walk: boolea
 }
 
 export function Sidebar() {
-  const { projects, tree, route, go } = useNav();
+  const { projects, tree, route, go, menu, setMenu } = useNav();
   const project = route.project;
   const here = route.path ?? '';
   const onFlow = !!route.flow;
-  const [rail, setRail] = useState(() => loadRail(onFlow));
+  const phone = usePhone();
+  const [railPref, setRail] = useState(() => loadRail(onFlow));
   useEffect(() => setRail(loadRail(onFlow)), [onFlow]);
+  // a phone has no rail, and the rail has no project picker
+  const rail = railPref && !phone && !!project;
   const toggle = () => {
+    if (phone) return setMenu(!menu);
+    if (!project) return;
     setRail(!rail);
     try {
       localStorage.setItem(railKey(onFlow), rail ? '0' : '1');
@@ -149,8 +167,13 @@ export function Sidebar() {
       // private mode: the choice lasts until the next view
     }
   };
+  const nav = useRef<HTMLElement>(null);
+  useEffect(() => {
+    nav.current?.querySelector('[aria-current]')?.scrollIntoView({ block: 'nearest' });
+  }, [route, tree, menu]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && phone && menu) return setMenu(false);
       if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
       if ((e.target as Element).closest('textarea, input, select, [role=listbox]')) return;
       e.preventDefault();
@@ -234,15 +257,6 @@ export function Sidebar() {
     return (
       <div key={n.path} className={`scope${inside(n) ? ' in' : ''}${cur ? ' cur' : ''}`}>
         <div className="frow">
-          <button
-            className="chev"
-            aria-label={exp ? `Collapse ${n.name}` : `Expand ${n.name}`}
-            aria-expanded={exp}
-            tabIndex={n.kids?.length || n.entry?.length ? 0 : -1}
-            onClick={flip}
-          >
-            <Svg d={CHEVRON} size={14} />
-          </button>
           <a
             className={`fold${cur && !route.flow ? ' on' : ''}`}
             href={hrefOf({ project, path: n.path })}
@@ -259,8 +273,20 @@ export function Sidebar() {
             }}
           >
             <Svg d={FOLDER} size={15} sw={1.8} />
+            <span className="ab" aria-hidden="true">
+              {n.name.slice(0, 2)}
+            </span>
             <span className="lbl">{n.name}</span>
           </a>
+          <button
+            className="chev"
+            aria-label={exp ? `Collapse ${n.name}` : `Expand ${n.name}`}
+            aria-expanded={exp}
+            tabIndex={n.kids?.length || n.entry?.length ? 0 : -1}
+            onClick={flip}
+          >
+            <Svg d={CHEVRON} size={14} />
+          </button>
         </div>
         {exp && (
           <div className="kids">
@@ -274,59 +300,65 @@ export function Sidebar() {
 
   const name = (p: Project) => p.info?.name || p.name;
   return (
-    <aside className={`side${rail ? ' rail' : ''}`}>
-      <div className="sh">
-        <Select
-          label="Project"
-          value={project}
-          placeholder="Pick a project"
-          options={(projects ?? []).map((p) => ({ value: p.name, label: name(p) }))}
-          onChange={(p) => go({ project: p })}
-        />
-      </div>
-      {project && tree && (
-        <nav className="tree" aria-label="Folders in this project">
-          <Item
-            to={{ project }}
-            on={!here && !route.flow}
-            tone={tree.entry?.[0] === 'page' ? 'page' : tree.entry?.[0] === 'map' ? 'map' : 'sys'}
-            label={tree.title || projects?.find((p) => p.name === project)?.info?.name || project}
+    <>
+      {phone && menu && <div className="scrim" onClick={() => setMenu(false)} />}
+      <aside
+        className={`side${rail ? ' rail' : ''}${phone && menu ? ' open' : ''}`}
+        inert={phone && !menu}
+      >
+        <div className="sh">
+          <Select
+            label="Project"
+            value={project}
+            placeholder="Pick a project"
+            options={(projects ?? []).map((p) => ({ value: p.name, label: name(p) }))}
+            onChange={(p) => go({ project: p })}
           />
-          {flowItems(tree)}
-          {tree.kids?.map((k) => row(k))}
-        </nav>
-      )}
-      <div className="sf">
-        <button
-          className="icon-btn"
-          title="Light / dark"
-          aria-label="Light / dark"
-          onClick={toggleTheme}
-        >
-          <span className="moon">
-            <Svg d={MOON} size={18} sw={1.8} />
-          </span>
-          <span className="sun">
-            <Svg d={SUN} size={18} sw={1.8} />
-          </span>
-        </button>
-        <button
-          className="icon-btn"
-          title={rail ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
-          aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!rail}
-          onClick={toggle}
-        >
-          <Svg d={PANEL} size={18} sw={1.8} />
-        </button>
-      </div>
-    </aside>
+          <button
+            className="icon-btn"
+            title={phone ? 'Close' : rail ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
+            aria-label={phone ? 'Close menu' : rail ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!rail}
+            onClick={toggle}
+          >
+            <Svg d={PANEL} size={18} sw={1.8} />
+          </button>
+        </div>
+        {project && tree && (
+          <nav className="tree" ref={nav} aria-label="Folders in this project">
+            <Item
+              to={{ project }}
+              on={!here && !route.flow}
+              tone={tree.entry?.[0] === 'page' ? 'page' : tree.entry?.[0] === 'map' ? 'map' : 'sys'}
+              label={tree.title || projects?.find((p) => p.name === project)?.info?.name || project}
+            />
+            {flowItems(tree)}
+            {tree.kids?.map((k) => row(k))}
+          </nav>
+        )}
+        <div className="sf">
+          <button
+            className="icon-btn"
+            title="Light / dark"
+            aria-label="Light / dark"
+            onClick={toggleTheme}
+          >
+            <span className="moon">
+              <Svg d={MOON} size={18} sw={1.8} />
+            </span>
+            <span className="sun">
+              <Svg d={SUN} size={18} sw={1.8} />
+            </span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
 // the route's folders and file, then the view's own crumbs; ancestors are links
 export function TopBar({ crumbs = [], children }: { crumbs?: string[]; children?: ReactNode }) {
-  const { route, tree, go } = useNav();
+  const { route, tree, go, setMenu } = useNav();
   const trail: { label: string; to?: Route }[] = [];
   if (route.project) {
     trail.push({ label: tree?.title || route.project, to: { project: route.project } });
@@ -345,6 +377,9 @@ export function TopBar({ crumbs = [], children }: { crumbs?: string[]; children?
   for (const c of crumbs) trail.push({ label: c });
   return (
     <header>
+      <button className="icon-btn menu-btn" aria-label="Open menu" onClick={() => setMenu(true)}>
+        <Svg d={MENU} size={20} sw={1.8} />
+      </button>
       <nav className="crumbs" aria-label="Breadcrumb">
         {trail.map((c, i) => (
           <Fragment key={i}>
@@ -368,7 +403,7 @@ export function TopBar({ crumbs = [], children }: { crumbs?: string[]; children?
         ))}
       </nav>
       <span className="grow" />
-      {children}
+      <div className="acts">{children}</div>
     </header>
   );
 }
@@ -399,9 +434,10 @@ type Tone = 'sys' | 'ov' | 'go' | 'you' | 'page' | 'map';
 export function PatternsButton({ n, onOpen }: { n: number; onOpen(): void }) {
   if (!n) return null;
   return (
-    <button className="plain" onClick={onOpen}>
+    <button className="plain" title="Go patterns" onClick={onOpen}>
       <Svg d="M4 6h16M4 12h10M4 18h6" sw={1.8} />
-      Go patterns · {n}
+      <span className="bl">Go patterns · </span>
+      {n}
     </button>
   );
 }
@@ -423,7 +459,7 @@ export function AskButton({ onAsk }: { onAsk(): void }) {
       onClick={onAsk}
     >
       <Svg d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" />
-      Ask
+      <span className="bl">Ask</span>
     </button>
   );
 }

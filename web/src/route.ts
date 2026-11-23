@@ -98,11 +98,17 @@ export function routeTo(project: string, path: string): Route {
   return { project, path };
 }
 
+// below this the sidebar is a drawer and the panel a bottom sheet; styles.css uses the same width
+export const PHONE = '(max-width: 700px)';
+
 export interface Nav {
   projects: Project[] | null;
   tree: TreeNode | null;
   route: Route;
   go(r: Route, replace?: boolean): void;
+  // the sidebar as a drawer, on a phone
+  menu: boolean;
+  setMenu(open: boolean): void;
 }
 export const NavCtx = createContext<Nav | null>(null);
 export const useNav = () => useContext(NavCtx)!;

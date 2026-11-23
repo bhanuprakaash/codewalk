@@ -314,7 +314,7 @@ button.plain svg {
 }
 .side {
   flex: none;
-  width: 240px;
+  width: 264px;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -326,8 +326,13 @@ button.plain svg {
   flex: none;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  gap: 4px;
+  padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--line);
+}
+.side .sh .select {
+  flex: 1;
+  min-width: 0;
 }
 .side .tree {
   flex: 1;
@@ -371,13 +376,13 @@ button.plain svg {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
+  width: 28px;
   height: 32px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--faint);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .side .frow .chev:hover {
   color: var(--text);
@@ -386,7 +391,14 @@ button.plain svg {
 .side .fold {
   flex: 1;
   min-width: 0;
-  padding-left: 4px;
+}
+/* the folder icon fills the same 24 px slot as an item's round icon, so labels line up */
+.side .fold > svg {
+  flex: none;
+  width: 24px;
+}
+.side .ab {
+  display: none;
 }
 .side .fold.on {
   background: var(--panel2);
@@ -426,19 +438,29 @@ button.plain svg {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-left: 14px;
+  margin-left: 15px;
+  padding-left: 5px;
+  border-left: 1px solid var(--line);
+}
+.side .scope.in > .kids {
+  border-left-color: var(--line2);
 }
 .side .sf {
   flex: none;
   display: flex;
-  justify-content: space-between;
+  margin-top: auto;
   padding: 8px;
   border-top: 1px solid var(--line);
 }
 .side.rail {
   width: 52px;
 }
-.side.rail .sh,
+.side.rail .sh {
+  padding: 0;
+  justify-content: center;
+}
+.side.rail .select,
+.side.rail .fold > svg,
 .side.rail .sec,
 .side.rail .lbl,
 .side.rail .chev,
@@ -446,7 +468,25 @@ button.plain svg {
   display: none;
 }
 .side.rail .kids {
+  margin-left: 0;
   padding-left: 0;
+  border-left: 0;
+}
+.side.rail .ab {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--panel2);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.side.rail .fold.on .ab,
+.side.rail .scope.in > .frow .ab {
+  background: var(--text);
+  color: var(--panel);
 }
 .side.rail .tab,
 .side.rail .fold {
@@ -454,19 +494,7 @@ button.plain svg {
   padding: 0;
 }
 .side.rail .sf {
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-@media (max-width: 700px) {
-  .side:not(.rail) {
-    position: absolute;
-    z-index: 20;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    box-shadow: var(--shadow);
-  }
+  justify-content: center;
 }
 .tab .ti {
   width: 24px;
@@ -2221,18 +2249,172 @@ pre.diff .hunk {
     display: none;
   }
 }
+/* phone: the sidebar is a drawer, the panel a bottom sheet (route.ts's PHONE is this width) */
+.menu-btn,
+.scrim {
+  display: none;
+}
+.acts {
+  display: contents;
+}
+#root {
+  height: 100dvh;
+}
 @media (max-width: 700px) {
-  #panel.open {
-    position: absolute;
-    z-index: 5;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    min-width: 0;
-    box-shadow: var(--shadow);
+  .menu-btn {
+    display: grid;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    color: var(--text);
   }
+  .scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .side {
+    position: fixed;
+    z-index: 40;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1),
+      visibility 0s 0.24s;
+  }
+  .side.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
+  }
+  .side .tab,
+  .side .fold,
+  .side .frow .chev {
+    height: 40px;
+  }
+  .side .frow .chev {
+    width: 40px;
+  }
+  .side .tab,
+  .side .fold {
+    font-size: 15px;
+  }
+  .side .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  header {
+    gap: 6px;
+    padding: 0 8px 0 4px;
+  }
+  header .crumbs {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 15px;
+  }
+  .crumbs > :not(:last-child),
+  header .grow,
+  header .meta,
+  .bl {
+    display: none;
+  }
+  .acts {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button.plain,
+  .dark-btn,
+  .chg-chip {
+    padding: 0 11px;
+  }
+
   #body {
-    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  #state {
+    display: none;
+  }
+  #panel,
+  #panel.open {
+    width: auto;
+    min-width: 0;
+    border-left: 0;
+    transition: height 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  #panel {
+    height: 0;
+  }
+  #panel.open {
+    height: 56dvh;
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  }
+  #ptabs {
+    padding: 10px 12px 0;
+  }
+  #pbody {
+    min-width: 0;
+    padding: 14px 16px 28px;
+  }
+  #panelAsk {
+    min-width: 0;
+    padding: 8px 12px 12px;
+  }
+  /* iOS zooms the page when a focused field's text is under 16 px */
+  #panelAsk input,
+  #askInput,
+  .note-input,
+  .mfilter {
+    font-size: 16px;
+  }
+
+  /* the summary card is its title until it is opened, so the graph gets the screen */
+  #summary {
+    padding: 12px 16px;
+  }
+  #summary b {
+    font-size: 16px;
+    margin: 0;
+  }
+  #summary a {
+    margin-top: 2px;
+  }
+  #summary.short .m,
+  #summary.short p,
+  #summary.short:has(.more) .flows {
+    display: none;
+  }
+  #summary:not(.short) {
+    max-height: calc(100% - 100px);
+    overflow-y: auto;
+  }
+  #tracebar .t,
+  #tracebar .tag-pill {
+    display: none;
+  }
+  /* two fingers zoom, so only Fit stays */
+  #zoom button:not(:last-child) {
+    display: none;
+  }
+  #zoom button {
+    border-top: 0;
+  }
+
+  #overview {
+    padding: 16px 14px 32px;
+  }
+  .wf,
+  .cluster {
+    width: 100%;
   }
 }
