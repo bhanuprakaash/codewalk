@@ -245,6 +245,53 @@
         h1 {
           font-size: 28px;
         }
+        h2 {
+          font-size: 21px;
+          margin-top: 44px;
+        }
+        p,
+        li,
+        td {
+          overflow-wrap: anywhere;
+        }
+        .toc li {
+          margin-bottom: 10px;
+        }
+        /* pre lines are written to fit 40 columns at this size */
+        pre {
+          font-size: 12px;
+          padding: 12px;
+        }
+        /* a table becomes one card per row: the first cell is its title, the rest are labelled */
+        .tbl table,
+        .tbl tbody,
+        .tbl tr,
+        .tbl td {
+          display: block;
+        }
+        .tbl tr:has(th) {
+          display: none;
+        }
+        .tbl tr {
+          padding: 12px 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .tbl td {
+          padding: 3px 0;
+          border: 0;
+        }
+        .tbl td:first-child {
+          font-weight: 600;
+        }
+        .tbl td[data-label]:not(:first-child)::before {
+          content: attr(data-label);
+          display: block;
+          font-size: 11px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--muted);
+          font-weight: 600;
+        }
       }
     </style>
   </head>
@@ -269,22 +316,27 @@
     <div class="tbl">
       <table>
         <tr><th>Policy</th><th>Evicts</th><th>Good at</th><th>Weak at</th></tr>
-        <tr><td><b>LRU</b> least recently used</td><td>The key untouched longest</td><td>Most workloads; recent use predicts near-future use</td><td>A one-time scan of many keys pushes out the hot ones</td></tr>
-        <tr><td><b>LFU</b> least frequently used</td><td>The key with the fewest accesses</td><td>Stable popularity, scan resistance</td><td>Old popular keys linger unless counts decay</td></tr>
-        <tr><td><b>FIFO</b></td><td>The oldest inserted key</td><td>Simplicity</td><td>Ignores use; can evict the hottest key</td></tr>
-        <tr><td><b>Random</b></td><td>Any key</td><td>Almost no bookkeeping</td><td>No intelligence at all</td></tr>
+        <tr><td data-label="Policy"><b>LRU</b> least recently used</td><td data-label="Evicts">The key untouched longest</td><td data-label="Good at">Most workloads; recent use predicts near-future use</td><td data-label="Weak at">A one-time scan of many keys pushes out the hot ones</td></tr>
+        <tr><td data-label="Policy"><b>LFU</b> least frequently used</td><td data-label="Evicts">The key with the fewest accesses</td><td data-label="Good at">Stable popularity, scan resistance</td><td data-label="Weak at">Old popular keys linger unless counts decay</td></tr>
+        <tr><td data-label="Policy"><b>FIFO</b></td><td data-label="Evicts">The oldest inserted key</td><td data-label="Good at">Simplicity</td><td data-label="Weak at">Ignores use; can evict the hottest key</td></tr>
+        <tr><td data-label="Policy"><b>Random</b></td><td data-label="Evicts">Any key</td><td data-label="Good at">Almost no bookkeeping</td><td data-label="Weak at">No intelligence at all</td></tr>
       </table>
     </div>
 
     <h2 id="lru"><span class="step">2</span>LRU, worked example</h2>
     <p>A cache with 3 slots and the access sequence <code>A B C A D B</code>. The list is ordered most recent first; the last item is next to be evicted.</p>
-    <pre>access  result            cache (most recent → least recent)
-  A     miss              [A]
-  B     miss              [B A]
-  C     miss              [C B A]          <span class="c"># full</span>
-  A     hit               [A C B]          <span class="c"># A moves to the front</span>
-  D     miss, evict B     [D A C]          <span class="c"># B was least recent</span>
-  B     miss, evict C     [B D A]          <span class="c"># C was least recent</span></pre>
+    <pre><span class="c"># cache: most recent → least recent</span>
+access result           cache
+  A    miss             [A]
+  B    miss             [B A]
+  C    miss             [C B A]
+       <span class="c"># full</span>
+  A    hit              [A C B]
+       <span class="c"># A moves to the front</span>
+  D    miss, evict B    [D A C]
+       <span class="c"># B was least recent</span>
+  B    miss, evict C    [B D A]
+       <span class="c"># C was least recent</span></pre>
     <p>1 hit in 6 accesses. A was saved because it was touched again before D arrived. With FIFO, the fourth access would not have protected A, and D would have evicted A instead of B.</p>
     <div class="note"><p>Eviction can remove a key that is still valid. A later request for it is simply a miss. An evicted key and an expired key look identical to the reader.</p></div>
 
@@ -298,7 +350,8 @@
     <pre>every ~100 ms:
   pick 20 random keys with a TTL
   delete the expired ones
-  <span class="k">if</span> more than 25% were expired: repeat   <span class="c"># bounded by a time budget</span></pre>
+  <span class="k">if</span> more than 25% were expired: repeat
+  <span class="c"># bounded by a time budget</span></pre>
     <p>Lazy expiry alone would leak memory from keys never read again; active expiry alone could leave expired keys visible between sweeps. Together they are cheap and correct from the reader's view, though expired keys can occupy memory for a while.</p>
 
     <h2 id="redis"><span class="step">4</span>Redis settings</h2>
@@ -306,14 +359,14 @@
     <div class="tbl">
       <table>
         <tr><th>Policy</th><th>Candidates</th><th>Rule</th></tr>
-        <tr><td><code>noeviction</code></td><td>none</td><td>Writes that need memory fail with an error; reads still work. The default.</td></tr>
-        <tr><td><code>allkeys-lru</code></td><td>all keys</td><td>Evict the least recently used. The usual choice for a pure cache.</td></tr>
-        <tr><td><code>allkeys-lfu</code></td><td>all keys</td><td>Evict the least frequently used.</td></tr>
-        <tr><td><code>allkeys-random</code></td><td>all keys</td><td>Evict a random key.</td></tr>
-        <tr><td><code>volatile-lru</code></td><td>keys with a TTL</td><td>Least recently used among keys that have an expiry.</td></tr>
-        <tr><td><code>volatile-lfu</code></td><td>keys with a TTL</td><td>Least frequently used among keys that have an expiry.</td></tr>
-        <tr><td><code>volatile-random</code></td><td>keys with a TTL</td><td>Random among keys that have an expiry.</td></tr>
-        <tr><td><code>volatile-ttl</code></td><td>keys with a TTL</td><td>Evict the key with the shortest remaining TTL.</td></tr>
+        <tr><td data-label="Policy"><code>noeviction</code></td><td data-label="Candidates">none</td><td data-label="Rule">Writes that need memory fail with an error; reads still work. The default.</td></tr>
+        <tr><td data-label="Policy"><code>allkeys-lru</code></td><td data-label="Candidates">all keys</td><td data-label="Rule">Evict the least recently used. The usual choice for a pure cache.</td></tr>
+        <tr><td data-label="Policy"><code>allkeys-lfu</code></td><td data-label="Candidates">all keys</td><td data-label="Rule">Evict the least frequently used.</td></tr>
+        <tr><td data-label="Policy"><code>allkeys-random</code></td><td data-label="Candidates">all keys</td><td data-label="Rule">Evict a random key.</td></tr>
+        <tr><td data-label="Policy"><code>volatile-lru</code></td><td data-label="Candidates">keys with a TTL</td><td data-label="Rule">Least recently used among keys that have an expiry.</td></tr>
+        <tr><td data-label="Policy"><code>volatile-lfu</code></td><td data-label="Candidates">keys with a TTL</td><td data-label="Rule">Least frequently used among keys that have an expiry.</td></tr>
+        <tr><td data-label="Policy"><code>volatile-random</code></td><td data-label="Candidates">keys with a TTL</td><td data-label="Rule">Random among keys that have an expiry.</td></tr>
+        <tr><td data-label="Policy"><code>volatile-ttl</code></td><td data-label="Candidates">keys with a TTL</td><td data-label="Rule">Evict the key with the shortest remaining TTL.</td></tr>
       </table>
     </div>
     <p>The <code>volatile-*</code> policies never touch keys without a TTL. If none are eligible, they behave like <code>noeviction</code> and writes fail. Use them when the same Redis holds both cache entries (with TTLs) and data that must stay (without).</p>
@@ -324,12 +377,15 @@
 <span class="k">maxmemory-samples</span> 10
 
 <span class="c"># watch it</span>
-INFO stats      <span class="c"># evicted_keys, expired_keys, keyspace_hits, keyspace_misses</span></pre>
+INFO stats
+<span class="c"># evicted_keys, expired_keys,</span>
+<span class="c"># keyspace_hits, keyspace_misses</span></pre>
     <div class="note aside"><p>The map's last flow, "Cache full · LRU eviction", plays this on a 3-key cache so you can see which key goes and why.</p></div>
 
     <h2 id="jitter"><span class="step">5</span>Jitter</h2>
     <p>If a thousand keys are loaded together with the same 300 s TTL, they all expire together, and the database takes a thousand misses in the same moment. This happens after a deploy, a cache restart or a bulk load. The fix is to randomize the TTL a little:</p>
-    <pre>ttl = 300 + random(0, 60)       <span class="c"># spread expiry across a minute</span>
+    <pre><span class="c"># spread expiry across a minute</span>
+ttl = 300 + random(0, 60)
 SET user:42 val EX <span class="k">ttl</span></pre>
     <p>Jitter spreads many keys. For one very hot key you also need a lock or single-flight on refill, as in the stampede flow on the map.</p>
 

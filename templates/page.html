@@ -245,6 +245,53 @@
         h1 {
           font-size: 28px;
         }
+        h2 {
+          font-size: 21px;
+          margin-top: 44px;
+        }
+        p,
+        li,
+        td {
+          overflow-wrap: anywhere;
+        }
+        .toc li {
+          margin-bottom: 10px;
+        }
+        /* pre lines are written to fit 40 columns at this size */
+        pre {
+          font-size: 12px;
+          padding: 12px;
+        }
+        /* a table becomes one card per row: the first cell is its title, the rest are labelled */
+        .tbl table,
+        .tbl tbody,
+        .tbl tr,
+        .tbl td {
+          display: block;
+        }
+        .tbl tr:has(th) {
+          display: none;
+        }
+        .tbl tr {
+          padding: 12px 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .tbl td {
+          padding: 3px 0;
+          border: 0;
+        }
+        .tbl td:first-child {
+          font-weight: 600;
+        }
+        .tbl td[data-label]:not(:first-child)::before {
+          content: attr(data-label);
+          display: block;
+          font-size: 11px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--muted);
+          font-weight: 600;
+        }
       }
     </style>
   </head>
@@ -276,9 +323,9 @@
           <th>Costs</th>
         </tr>
         <tr>
-          <td>A</td>
-          <td>…</td>
-          <td>…</td>
+          <td data-label="Option">A</td>
+          <td data-label="Good at">…</td>
+          <td data-label="Costs">…</td>
         </tr>
       </table>
     </div>
