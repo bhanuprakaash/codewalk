@@ -19,6 +19,7 @@ from a repo and are described in [system.md](system.md).
       "kind": "service",
       "label": "App server",
       "sub": "stateless · 3 replicas",
+      "brief": "Checks the cache first, then the DB.",
       "pos": [1, 1],
       "what": "What it does, one or two sentences.",
       "why": "Why it is there; the reason or trade-off behind it.",
@@ -77,7 +78,8 @@ from a repo and are described in [system.md](system.md).
 
 - `id` (required, unique), `kind` (required), `pos` (required): `[col, row]`; a column is 360 px
   and a row 170 px. Fractions are fine.
-- `label` defaults to `id`; `sub` is a short second line on the box.
+- `label` defaults to `id`; `sub` is a short second line on the box. `brief` is a sentence shown
+  under them inside the box (up to three lines; the box grows to fit).
 - `kind` sets the icon and colour:
 
   | kind       | for                                     |

@@ -48,6 +48,7 @@ export interface WalkNode {
   kind: Kind;
   label: string;
   sub?: string;
+  brief?: string;
   what?: string;
   gotcha?: string;
   why?: Why;
