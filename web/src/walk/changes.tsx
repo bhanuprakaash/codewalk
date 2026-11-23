@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { STATIC } from '../static';
 import { Sec } from './parts';
 
 export interface Change {
@@ -16,7 +17,7 @@ export function useChanges(query: string | null) {
   const [res, setRes] = useState<Changes | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (query === null) return;
+    if (query === null || STATIC) return;
     let live = true;
     fetch(`/api/changes?${query}`)
       .then(async (r) => {

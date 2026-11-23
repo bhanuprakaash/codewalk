@@ -28,11 +28,13 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: codewalk serve [--port N] [--data DIR] | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json | system.json | *.map.json>")
+		return errors.New("usage: codewalk serve [--port N] [--data DIR] | export [--data DIR] <out dir> | install | uninstall | scan <repo> <pkg dir>... | validate <storyboard.json | system.json | *.map.json>")
 	}
 	switch args[0] {
 	case "serve":
 		return serve(args[1:])
+	case "export":
+		return exportCmd(args[1:])
 	case "install":
 		return install()
 	case "uninstall":
@@ -42,7 +44,7 @@ func run(args []string) error {
 	case "validate":
 		return validate(args[1:])
 	}
-	return fmt.Errorf("unknown command %q (want serve, install, uninstall, scan or validate)", args[0])
+	return fmt.Errorf("unknown command %q (want serve, export, install, uninstall, scan or validate)", args[0])
 }
 
 func serve(args []string) error {
@@ -66,6 +68,26 @@ func serve(args []string) error {
 	}
 	fmt.Printf("codewalk listening on http://codewalk.localhost:%d (data %s)\n", *port, *data)
 	return http.Serve(ln, server.Handler(*data))
+}
+
+func exportCmd(args []string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("export", flag.ContinueOnError)
+	data := flags.String("data", filepath.Join(home, ".codewalk"), "data directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 {
+		return errors.New("usage: codewalk export [--data DIR] <out dir>")
+	}
+	if err := server.Export(*data, flags.Arg(0)); err != nil {
+		return err
+	}
+	fmt.Printf("exported %s to %s\n", *data, flags.Arg(0))
+	return nil
 }
 
 func scanCmd(args []string) error {
