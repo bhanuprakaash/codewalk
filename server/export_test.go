@@ -1,11 +1,14 @@
 package server
 
 import (
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bhanuprakaash/codewalk/web"
 )
 
 // the UI's static.ts must name the same file for the same request; 20d2b197 is what it computes
@@ -24,8 +27,18 @@ func TestExport(t *testing.T) {
 		"sd/caching/index.map.json":  `{"title":"Caching map","nodes":[]}`,
 		"sd/caching/index.user.json": `{"notes":{"box:a":"hi"}}`,
 		"sd/.secret/x.html":          `hidden`,
+		"sd/extra.map.json":          `{"title":"Extra","nodes":[]}`,
+		"sd/extra.user.json":         `{"notes":{"box:b":"extra note"}}`,
 		"go/run/walk.json":           `{"repo":"/r","nodes":{}}`,
+		"go/system.built.json":       `{"boxes":"main"}`,
+		"go/system-db.built.json":    `{"boxes":"db"}`,
 	})
+	if _, err := fs.Stat(web.FS(), "index.html"); err != nil {
+		if Export(data, out) == nil {
+			t.Fatal("exported with no UI built")
+		}
+		t.Skip("UI not built (make build): only the refusal is checked")
+	}
 	if err := Export(data, out); err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +67,15 @@ func TestExport(t *testing.T) {
 	}
 	if s := snapOf("walk", "project", "go", "scope", "run"); !strings.Contains(s, `"repo"`) {
 		t.Errorf("walk = %s", s)
+	}
+	if s := snapOf("user", "project", "sd", "map", "extra.map.json"); !strings.Contains(s, "extra note") {
+		t.Errorf("standalone map user = %s", s)
+	}
+	if s := snapOf("system", "project", "go"); !strings.Contains(s, "main") {
+		t.Errorf("system = %s", s)
+	}
+	if s := snapOf("system", "project", "go", "id", "db"); !strings.Contains(s, "db") {
+		t.Errorf("system db = %s", s)
 	}
 	if read("files/sd/caching/index.html") != `<title>Caching</title>` {
 		t.Error("page not copied")

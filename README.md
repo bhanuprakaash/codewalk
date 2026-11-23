@@ -76,6 +76,11 @@ npx wrangler pages secret put PASSWORD --project-name codewalk
 npx wrangler pages deploy ~/codewalk-site --project-name codewalk   # picks up the secret
 ```
 
+Deploy with wrangler (a dashboard upload may not run `_worker.js`). Then in the dashboard set the
+project's Settings > Runtime > Fail open / closed to **Fail closed**: on the free plan, a day past
+100,000 requests otherwise serves the files without asking for the password. `curl -I` on the
+`pages.dev` URL and on a deployment's own URL should both answer 401.
+
 ## Update
 
 ```sh

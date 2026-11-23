@@ -29,6 +29,9 @@ const exportMarker = ".codewalk-export"
 // the UI, every project's files under files/, and each GET the UI makes saved under snap/ by
 // snapKey. _worker.js asks for the password in the host's PASSWORD secret.
 func Export(dataDir, out string) error {
+	if _, err := fs.Stat(web.FS(), "index.html"); err != nil {
+		return errors.New("the UI is not built into this binary: run make build first")
+	}
 	if err := prepareOut(dataDir, out); err != nil {
 		return err
 	}
